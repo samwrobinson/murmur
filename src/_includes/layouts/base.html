@@ -29,13 +29,18 @@
         <link rel="manifest" href="/assets/favicons/site.webmanifest"/>
 
         <!-- Preloads -->
-        <link rel="preload" as="image" href="/assets/svgs/logo-black.svg">
-        <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/roboto-v29-latin-regular.woff2" crossorigin>
-        <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/roboto-v29-latin-700.woff2" crossorigin>
+        <link rel="preload" as="image" href="/assets/images/logo-icon.png">
+        <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/fraunces-v38-latin-regular.woff2" crossorigin>
+        <link rel="preload" as="font" type="font/woff2" href="/assets/fonts/crimson-pro-v28-latin-regular.woff2" crossorigin>
 
         <!-- Sitewide Stylesheets and Scripts -->
         <link rel="stylesheet" href="/assets/css/root.css">
-        <script>window.MURMUR_API = "{{ client.apiUrl }}";</script>
+        <script>
+            window.MURMUR_API = "{{ client.apiUrl }}" || "";
+            if (window.MURMUR_API.includes("localhost")) {
+                window.MURMUR_API = window.MURMUR_API.replace("localhost", location.hostname);
+            }
+        </script>
         <script defer src="/assets/js/nav.js"></script>
 
         {% block head %}{% endblock %}
