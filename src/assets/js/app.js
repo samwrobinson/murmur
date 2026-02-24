@@ -503,11 +503,36 @@ async function initEntryDetail() {
             audioSection.style.display = "";
         }
 
-        // Transcription
-        if (entry.transcription) {
-            const section = document.getElementById("entry-transcription-section");
-            document.getElementById("entry-transcription").textContent = entry.transcription;
-            section.style.display = "";
+        // Transcription (with polling for pending status)
+        const transcriptionSection = document.getElementById("entry-transcription-section");
+        const transcriptionEl = document.getElementById("entry-transcription");
+
+        function showTranscription(e) {
+            if (e.transcription) {
+                transcriptionEl.textContent = e.transcription;
+                transcriptionSection.style.display = "";
+            } else if (e.transcription_status === "pending") {
+                transcriptionEl.textContent = "Transcribing...";
+                transcriptionSection.style.display = "";
+            } else if (e.transcription_status === "failed") {
+                transcriptionEl.textContent = "Transcription failed.";
+                transcriptionSection.style.display = "";
+            }
+        }
+        showTranscription(entry);
+
+        if (entry.transcription_status === "pending") {
+            const pollInterval = setInterval(async () => {
+                try {
+                    const pollRes = await fetch(`${API}/api/entries/${id}`);
+                    if (!pollRes.ok) return;
+                    const updated = await pollRes.json();
+                    showTranscription(updated);
+                    if (updated.transcription_status !== "pending") {
+                        clearInterval(pollInterval);
+                    }
+                } catch (_) {}
+            }, 3000);
         }
 
         // Notes

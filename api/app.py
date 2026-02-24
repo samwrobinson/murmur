@@ -2,8 +2,10 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from datetime import datetime
 import os
+import threading
 
 from config import FLASK_HOST, FLASK_PORT, AUDIO_DIR
+from transcribe import transcribe_entry
 from db import (
     init_db, get_entries, get_entry, create_entry, update_entry, delete_entry,
     toggle_favorite, search_entries, get_on_this_day, add_tag, remove_tag,
@@ -76,6 +78,15 @@ def api_create_entry():
                 tag_name = tag_name.strip()
                 if tag_name:
                     add_tag(entry_id, tag_name)
+
+        # Kick off background transcription for audio entries
+        if audio_filename:
+            audio_path = os.path.join(AUDIO_DIR, audio_filename)
+            threading.Thread(
+                target=transcribe_entry,
+                args=(entry_id, audio_path),
+                daemon=True,
+            ).start()
 
         entry, tags = get_entry(entry_id)
         return jsonify(entry_to_dict(entry, tags)), 201
