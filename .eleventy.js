@@ -75,7 +75,6 @@ module.exports = function (eleventyConfig) {
     // ═════════════════════════════════════════════════════════════════════════
 
     eleventyConfig.addPassthroughCopy("./src/assets"); // Static assets
-    eleventyConfig.addPassthroughCopy("./src/admin"); // CMS admin files
     eleventyConfig.addPassthroughCopy("./src/_redirects"); // Redirect rules
 
     // ═════════════════════════════════════════════════════════════════════════

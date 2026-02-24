@@ -1,0 +1,52 @@
+---
+title: "Search"
+description: "Search your voice journal entries"
+permalink: "/search/"
+tags: "sitemap"
+---
+
+{% extends "layouts/base.html" %}
+
+{% block head %}
+    <link rel="stylesheet" href="/assets/css/local.css"/>
+{% endblock %}
+
+{% block body %}
+
+<!-- ============================================ -->
+<!--                   Search                     -->
+<!-- ============================================ -->
+
+<section id="search-1">
+    <div class="cs-container">
+        <div class="cs-content">
+            <span class="cs-topper">Find a Memory</span>
+            <h2 class="cs-title">Search Your Murmurs</h2>
+        </div>
+        <!--Search Bar-->
+        <form class="cs-search-form" id="search-form">
+            <label class="cs-search-label" for="cs-search-input">
+                <svg class="cs-search-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                    <circle cx="11" cy="11" r="8"></circle>
+                    <line x1="21" y1="21" x2="16.65" y2="16.65"></line>
+                </svg>
+                <input class="cs-search-input" id="cs-search-input" type="text" placeholder='Try "first laugh" or "bath time"' autocomplete="off">
+            </label>
+        </form>
+        <!--Quick Filter Tags-->
+        <div class="cs-tag-group" id="search-tags">
+            <span class="cs-tag-label">Quick filters:</span>
+            <ul class="cs-tags">
+                <!--Tags rendered by app.js-->
+            </ul>
+        </div>
+        <!--Search Results-->
+        <ul class="cs-result-group" id="search-results">
+            <!--Results rendered by app.js-->
+        </ul>
+    </div>
+</section>
+
+<script defer src="/assets/js/app.js"></script>
+
+{% endblock %}

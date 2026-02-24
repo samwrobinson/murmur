@@ -1,0 +1,97 @@
+---
+title: "Entry"
+description: "View a journal entry"
+permalink: "/entry/"
+tags: "sitemap"
+---
+
+{% extends "layouts/base.html" %}
+
+{% block head %}
+    <link rel="stylesheet" href="/assets/css/local.css"/>
+{% endblock %}
+
+{% block body %}
+
+<!-- ============================================ -->
+<!--               Entry Detail                   -->
+<!-- ============================================ -->
+
+<section id="entry-detail-1">
+    <div class="cs-container">
+        <!--Back Link-->
+        <a href="/" class="cs-back-link">
+            <svg class="cs-back-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                <path d="M19 12H5"/>
+                <path d="M12 19l-7-7 7-7"/>
+            </svg>
+            Back to timeline
+        </a>
+
+        <!--Loading / Error states-->
+        <p class="cs-status" id="entry-status">Loading...</p>
+
+        <!--Entry content (hidden until loaded)-->
+        <div class="cs-entry" id="entry-content" style="display: none;">
+            <!--Date Header-->
+            <div class="cs-date-header">
+                <div class="cs-date-block">
+                    <span class="cs-date-day" id="entry-day"></span>
+                    <span class="cs-date-month" id="entry-month"></span>
+                </div>
+                <div class="cs-date-meta">
+                    <h1 class="cs-title" id="entry-title"></h1>
+                    <div class="cs-details">
+                        <span class="cs-time" id="entry-time"></span>
+                        <span class="cs-source" id="entry-source"></span>
+                    </div>
+                </div>
+            </div>
+
+            <!--Audio Player (voice entries only)-->
+            <div class="cs-audio-section" id="entry-audio" style="display: none;">
+                <label class="cs-label">Recording</label>
+                <audio id="entry-player" controls></audio>
+            </div>
+
+            <!--Transcription-->
+            <div class="cs-text-section" id="entry-transcription-section" style="display: none;">
+                <label class="cs-label">Transcription</label>
+                <p class="cs-body-text" id="entry-transcription"></p>
+            </div>
+
+            <!--Notes-->
+            <div class="cs-text-section" id="entry-notes-section" style="display: none;">
+                <label class="cs-label">Notes</label>
+                <p class="cs-body-text" id="entry-notes"></p>
+            </div>
+
+            <!--Tags-->
+            <div class="cs-tags-section" id="entry-tags-section" style="display: none;">
+                <label class="cs-label">Tags</label>
+                <div class="cs-tag-list" id="entry-tags"></div>
+            </div>
+
+            <!--Actions-->
+            <div class="cs-actions">
+                <button class="cs-favorite-btn" id="entry-favorite-btn" type="button">
+                    <svg class="cs-heart-icon" id="entry-heart" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <path d="M20.84 4.61a5.5 5.5 0 0 0-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 0 0-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 0 0 0-7.78z"/>
+                    </svg>
+                    <span id="entry-favorite-label">Favorite</span>
+                </button>
+                <button class="cs-delete-btn" id="entry-delete-btn" type="button">
+                    <svg class="cs-delete-icon" xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" aria-hidden="true">
+                        <polyline points="3 6 5 6 21 6"/>
+                        <path d="M19 6v14a2 2 0 0 1-2 2H7a2 2 0 0 1-2-2V6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"/>
+                    </svg>
+                    Delete
+                </button>
+            </div>
+        </div>
+    </div>
+</section>
+
+<script defer src="/assets/js/app.js"></script>
+
+{% endblock %}

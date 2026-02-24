@@ -1,23 +1,24 @@
 module.exports = {
-    name: "Code Stitch Web Designs",
-    email: "help@codestitch.app",
-    phoneForTel: "555-779-4407",
-    phoneFormatted: "(555) 779-4407",
+    name: "Murmur",
+    description: "A pocket-sized voice journal. Press button, speak memory, done. No phone, no cloud, no distractions.",
+    email: "",
+    phoneForTel: "",
+    phoneFormatted: "",
     address: {
-        lineOne: "First Address Line",
-        lineTwo: "Second Address Line",
-        city: "Denver",
-        state: "CO",
-        zip: "80206",
-        country: "US",
-        mapLink: "https://maps.app.goo.gl/TEdS5KoLC9ZcULuQ6",
+        lineOne: "",
+        lineTwo: "",
+        city: "",
+        state: "",
+        zip: "",
+        mapLink: "",
     },
-    socials: {
-        facebook: "https://www.facebook.com/",
-        instagram: "https://www.instagram.com/",
-    },
+    socials: [],
     //! Make sure you include the file protocol (e.g. https://) and that NO TRAILING SLASH is included
-    domain: "https://www.example.com",
+    domain: "https://murmur.local",
     // Passing the isProduction variable for use in HTML templates
     isProduction: process.env.ELEVENTY_ENV === "PROD",
+    // API URL — points to Flask server
+    apiUrl: process.env.ELEVENTY_ENV === "PROD"
+        ? ""  // Same host in production (nginx proxies /api to Flask)
+        : "http://localhost:5001",  // Dev: Flask runs on separate port
 };

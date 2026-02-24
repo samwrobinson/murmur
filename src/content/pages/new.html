@@ -1,0 +1,79 @@
+---
+title: "New Entry"
+description: "Record a new voice journal entry"
+permalink: "/new/"
+tags: "sitemap"
+---
+
+{% extends "layouts/base.html" %}
+
+{% block head %}
+    <link rel="stylesheet" href="/assets/css/local.css"/>
+{% endblock %}
+
+{% block body %}
+
+<!-- ============================================ -->
+<!--                 New Entry                    -->
+<!-- ============================================ -->
+
+<section id="new-entry-1">
+    <div class="cs-container">
+        <div class="cs-content">
+            <span class="cs-topper">Capture a Moment</span>
+            <h2 class="cs-title">New Memory</h2>
+        </div>
+        <!--Daily Prompt-->
+        <div class="cs-prompt" id="daily-prompt">
+            <p class="cs-prompt-text"></p>
+        </div>
+        <!--Mode Toggle-->
+        <div class="cs-mode-toggle">
+            <button class="cs-mode-btn cs-active" id="mode-voice" type="button">Voice</button>
+            <button class="cs-mode-btn" id="mode-type" type="button">Type</button>
+        </div>
+        <!--Voice Recording Panel-->
+        <div class="cs-panel cs-voice-panel" id="voice-panel">
+            <div class="cs-recorder">
+                <button class="cs-record-btn" id="record-btn" type="button" aria-label="Record">
+                    <svg class="cs-record-icon" xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
+                        <path d="M12 14c1.66 0 3-1.34 3-3V5c0-1.66-1.34-3-3-3S9 3.34 9 5v6c0 1.66 1.34 3 3 3z"/>
+                        <path d="M17 11c0 2.76-2.24 5-5 5s-5-2.24-5-5H5c0 3.53 2.61 6.43 6 6.92V21h2v-3.08c3.39-.49 6-3.39 6-6.92h-2z"/>
+                    </svg>
+                </button>
+                <span class="cs-record-label" id="record-label">Tap to record</span>
+                <span class="cs-record-timer" id="record-timer">0:00</span>
+            </div>
+            <!--Playback (shown after recording)-->
+            <div class="cs-playback" id="playback" style="display: none;">
+                <audio id="audio-preview" controls></audio>
+                <button class="cs-discard-btn" id="discard-btn" type="button">Discard &amp; re-record</button>
+            </div>
+        </div>
+        <!--Type Panel-->
+        <div class="cs-panel cs-type-panel" id="type-panel" style="display: none;">
+            <textarea class="cs-textarea" id="entry-notes" rows="6" placeholder="What do you want to remember?"></textarea>
+        </div>
+        <!--Notes (shown in voice mode for optional extra context)-->
+        <div class="cs-notes-group" id="voice-notes-group">
+            <label class="cs-label" for="voice-notes">Add a note (optional)</label>
+            <textarea class="cs-textarea cs-textarea-small" id="voice-notes" rows="3" placeholder="Any extra context..."></textarea>
+        </div>
+        <!--Tags-->
+        <div class="cs-tags-input-group">
+            <label class="cs-label" for="tag-input">Tags</label>
+            <div class="cs-tags-row">
+                <div class="cs-selected-tags" id="selected-tags"></div>
+                <input class="cs-tag-input" id="tag-input" type="text" placeholder="Add a tag..." autocomplete="off">
+            </div>
+            <div class="cs-suggested-tags" id="suggested-tags"></div>
+        </div>
+        <!--Save-->
+        <button class="cs-button-solid cs-save-btn" id="save-btn" type="button">Save Memory</button>
+        <p class="cs-save-status" id="save-status"></p>
+    </div>
+</section>
+
+<script defer src="/assets/js/app.js"></script>
+
+{% endblock %}
