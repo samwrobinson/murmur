@@ -320,6 +320,19 @@ def get_stats():
     return stats
 
 
+def get_untranscribed_entries():
+    """Get entries waiting for remote transcription."""
+    conn = get_db()
+    entries = conn.execute(
+        """SELECT id, audio_filename, duration_seconds, created_at
+           FROM entries
+           WHERE transcription_status = 'pending' AND audio_filename IS NOT NULL
+           ORDER BY created_at ASC"""
+    ).fetchall()
+    conn.close()
+    return entries
+
+
 def get_random_prompt():
     conn = get_db()
     prompt = conn.execute(

@@ -4,12 +4,13 @@ from datetime import datetime
 import os
 import threading
 
-from config import FLASK_HOST, FLASK_PORT, AUDIO_DIR
+from config import FLASK_HOST, FLASK_PORT, AUDIO_DIR, TRANSCRIBE_LOCALLY
 from transcribe import transcribe_entry
 from db import (
     init_db, get_entries, get_entry, create_entry, update_entry, delete_entry,
     toggle_favorite, search_entries, get_on_this_day, add_tag, remove_tag,
-    get_all_tags, create_milestone, get_milestones, get_stats, get_random_prompt
+    get_all_tags, create_milestone, get_milestones, get_stats, get_random_prompt,
+    get_untranscribed_entries,
 )
 
 app = Flask(__name__)
@@ -49,6 +50,12 @@ def api_entry_detail(entry_id):
     return jsonify(entry_to_dict(entry, tags))
 
 
+@app.route("/api/entries/untranscribed")
+def api_untranscribed():
+    entries = get_untranscribed_entries()
+    return jsonify({"entries": [dict(e) for e in entries]})
+
+
 @app.route("/api/entries", methods=["POST"])
 def api_create_entry():
     # Handle audio file upload (multipart form)
@@ -80,7 +87,7 @@ def api_create_entry():
                     add_tag(entry_id, tag_name)
 
         # Kick off background transcription for audio entries
-        if audio_filename:
+        if audio_filename and TRANSCRIBE_LOCALLY:
             audio_path = os.path.join(AUDIO_DIR, audio_filename)
             threading.Thread(
                 target=transcribe_entry,
