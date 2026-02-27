@@ -90,9 +90,11 @@ def api_create_entry():
         # Kick off background transcription for audio entries
         if audio_filename and TRANSCRIBE_LOCALLY:
             audio_path = os.path.join(AUDIO_DIR, audio_filename)
+            client_key = request.headers.get("X-OpenAI-Key")
             threading.Thread(
                 target=transcribe_entry,
                 args=(entry_id, audio_path),
+                kwargs={"client_key": client_key},
                 daemon=True,
             ).start()
 

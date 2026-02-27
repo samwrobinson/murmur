@@ -1,0 +1,48 @@
+---
+title: "Settings"
+description: "Configure your Murmur preferences"
+permalink: "/settings/"
+tags: "sitemap"
+---
+
+{% extends "layouts/base.html" %}
+
+{% block head %}
+    <link rel="stylesheet" href="/assets/css/local.css"/>
+{% endblock %}
+
+{% block body %}
+
+<!-- ============================================ -->
+<!--                  Settings                    -->
+<!-- ============================================ -->
+
+<section id="new-entry-1">
+    <div class="cs-container">
+        <div class="cs-content">
+            <span class="cs-topper">Preferences</span>
+            <h2 class="cs-title">Settings</h2>
+        </div>
+
+        <!-- OpenAI API Key -->
+        <div class="cs-notes-group">
+            <label class="cs-label" for="openai-key">OpenAI API Key</label>
+            <p class="cs-save-status" style="text-align: left; min-height: 0;">Used for voice transcription. Your key is stored locally in this browser and never sent to our server — it goes directly to OpenAI.</p>
+            <div class="cs-tags-row" style="flex-wrap: nowrap;">
+                <input class="cs-tag-input" id="openai-key" type="password" placeholder="sk-..." autocomplete="off" style="min-width: 0; flex: 1; font-size: 1rem;">
+                <button id="toggle-key-vis" type="button" style="background: none; border: none; cursor: pointer; color: var(--textMuted); padding: 0.25rem;" aria-label="Show or hide key">
+                    <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <path d="M1 12s4-8 11-8 11 8 11 8-4 8-11 8-11-8-11-8z"/>
+                        <circle cx="12" cy="12" r="3"/>
+                    </svg>
+                </button>
+            </div>
+        </div>
+        <button class="cs-button-solid cs-save-btn" id="save-key-btn" type="button">Save Key</button>
+        <p class="cs-save-status" id="key-status"></p>
+    </div>
+</section>
+
+<script defer src="/assets/js/app.js"></script>
+
+{% endblock %}

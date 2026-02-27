@@ -8,6 +8,14 @@
 const API = window.MURMUR_API || "";
 
 // ─────────────────────────────────────────────────────────────────────────────
+// API Key helper
+// ─────────────────────────────────────────────────────────────────────────────
+
+function getOpenAIKey() {
+    return localStorage.getItem("murmur_openai_key") || "";
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Helpers
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -336,8 +344,13 @@ async function saveEntry() {
             if (voiceNotes) formData.append("notes", voiceNotes);
             if (selectedTags.length) formData.append("tags", selectedTags.join(","));
 
+            const voiceHeaders = {};
+            const apiKey = getOpenAIKey();
+            if (apiKey) voiceHeaders["X-OpenAI-Key"] = apiKey;
+
             res = await fetch(`${API}/api/entries`, {
                 method: "POST",
+                headers: voiceHeaders,
                 body: formData,
             });
         } else {
@@ -348,9 +361,13 @@ async function saveEntry() {
                 if (saveBtn) saveBtn.disabled = false;
                 return;
             }
+            const jsonHeaders = { "Content-Type": "application/json" };
+            const textApiKey = getOpenAIKey();
+            if (textApiKey) jsonHeaders["X-OpenAI-Key"] = textApiKey;
+
             res = await fetch(`${API}/api/entries`, {
                 method: "POST",
-                headers: { "Content-Type": "application/json" },
+                headers: jsonHeaders,
                 body: JSON.stringify({
                     notes: notes,
                     source: "web",
@@ -608,6 +625,41 @@ async function initEntryDetail() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// Settings page
+// ─────────────────────────────────────────────────────────────────────────────
+
+function initSettings() {
+    const keyInput = document.getElementById("openai-key");
+    if (!keyInput) return;
+
+    const saveBtn = document.getElementById("save-key-btn");
+    const statusEl = document.getElementById("key-status");
+    const toggleBtn = document.getElementById("toggle-key-vis");
+
+    // Load existing key
+    const existing = getOpenAIKey();
+    if (existing) keyInput.value = existing;
+
+    // Show/hide toggle
+    toggleBtn.addEventListener("click", () => {
+        const isPassword = keyInput.type === "password";
+        keyInput.type = isPassword ? "text" : "password";
+    });
+
+    // Save
+    saveBtn.addEventListener("click", () => {
+        const key = keyInput.value.trim();
+        if (key) {
+            localStorage.setItem("murmur_openai_key", key);
+            if (statusEl) statusEl.textContent = "Key saved.";
+        } else {
+            localStorage.removeItem("murmur_openai_key");
+            if (statusEl) statusEl.textContent = "Key removed.";
+        }
+    });
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Init — run the right page initializer based on what's in the DOM
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -616,4 +668,5 @@ document.addEventListener("DOMContentLoaded", () => {
     initSearch();
     initNewEntry();
     initEntryDetail();
+    initSettings();
 });
