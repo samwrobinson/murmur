@@ -16,7 +16,11 @@ import tempfile
 import traceback
 
 import requests
+import urllib3
 import whisper
+
+# Suppress SSL warnings for self-signed cert
+urllib3.disable_warnings(urllib3.exceptions.InsecureRequestWarning)
 
 # --- Configuration ---
 PI_BASE_URL = os.environ.get("MURMUR_API_URL", "http://murmur.local:5001")
@@ -38,14 +42,14 @@ def get_model():
 
 def fetch_untranscribed():
     """Get the list of entries waiting for transcription."""
-    resp = requests.get(f"{PI_BASE_URL}/api/entries/untranscribed", timeout=10)
+    resp = requests.get(f"{PI_BASE_URL}/api/entries/untranscribed", timeout=10, verify=False)
     resp.raise_for_status()
     return resp.json()["entries"]
 
 
 def download_audio(filename):
     """Download an audio file from the Pi to a temp file. Returns the path."""
-    resp = requests.get(f"{PI_BASE_URL}/api/audio/{filename}", timeout=30)
+    resp = requests.get(f"{PI_BASE_URL}/api/audio/{filename}", timeout=30, verify=False)
     resp.raise_for_status()
     tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
     tmp.write(resp.content)
@@ -59,6 +63,7 @@ def push_transcription(entry_id, text):
         f"{PI_BASE_URL}/api/entries/{entry_id}",
         json={"transcription": text, "transcription_status": "done"},
         timeout=10,
+        verify=False,
     )
     resp.raise_for_status()
 
@@ -70,6 +75,7 @@ def mark_failed(entry_id):
             f"{PI_BASE_URL}/api/entries/{entry_id}",
             json={"transcription_status": "failed"},
             timeout=10,
+            verify=False,
         )
     except Exception:
         pass

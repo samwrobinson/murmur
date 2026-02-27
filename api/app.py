@@ -69,7 +69,8 @@ def api_create_entry():
         audio_filename = None
         if audio:
             timestamp = datetime.now().strftime("%Y-%m-%d_%H%M%S")
-            audio_filename = f"{timestamp}.wav"
+            ext = os.path.splitext(audio.filename)[1] or ".webm"
+            audio_filename = f"{timestamp}{ext}"
             audio.save(os.path.join(AUDIO_DIR, audio_filename))
 
         entry_id = create_entry(

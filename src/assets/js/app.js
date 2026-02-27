@@ -224,7 +224,13 @@ function updateTimer() {
 
 async function startRecording() {
     const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
-    mediaRecorder = new MediaRecorder(stream);
+    // Pick a format the browser supports — prefer mp4 (Safari) then webm (Chrome/Firefox)
+    const mimeType = MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4"
+        : MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm"
+        : "";
+    mediaRecorder = mimeType
+        ? new MediaRecorder(stream, { mimeType })
+        : new MediaRecorder(stream);
     audioChunks = [];
 
     mediaRecorder.addEventListener("dataavailable", (e) => {
@@ -235,7 +241,7 @@ async function startRecording() {
         // Stop all tracks so the mic indicator goes away
         stream.getTracks().forEach((t) => t.stop());
 
-        recordedBlob = new Blob(audioChunks, { type: "audio/webm" });
+        recordedBlob = new Blob(audioChunks, { type: mediaRecorder.mimeType });
         recordedDuration = Math.round((Date.now() - recordingStartTime) / 1000);
 
         // Show playback
@@ -322,7 +328,8 @@ async function saveEntry() {
             }
             // Voice entry — upload audio as multipart form
             const formData = new FormData();
-            formData.append("audio", recordedBlob, "recording.webm");
+            const ext = recordedBlob.type.includes("mp4") ? "m4a" : "webm";
+            formData.append("audio", recordedBlob, `recording.${ext}`);
             formData.append("source", "web-audio");
             formData.append("duration", String(recordedDuration));
             const voiceNotes = document.getElementById("voice-notes")?.value.trim();
