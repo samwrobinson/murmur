@@ -29,22 +29,13 @@ apt-get install -y \
     alsa-utils \
     sox
 
-# --- 2. WhisPlay HAT driver ---
 echo ""
-echo "[2/7] Installing WhisPlay HAT driver..."
-WHISPLAY_DIR="/home/murmur/Whisplay"
-if [ -d "$WHISPLAY_DIR/Driver" ]; then
-    echo "  WhisPlay already cloned, skipping."
-else
-    sudo -u murmur git clone --depth 1 https://github.com/PiSugar/Whisplay.git "$WHISPLAY_DIR"
-fi
-if [ ! -f "/etc/asound.conf" ] || ! grep -q "wm8960" /proc/asound/cards 2>/dev/null; then
-    echo "  Installing WM8960 audio driver (requires reboot after setup completes)..."
-    cd "$WHISPLAY_DIR/Driver" && bash install_wm8960_drive.sh
-    cd "$MURMUR_HOME"
-else
-    echo "  WM8960 driver already installed."
-fi
+echo "[2/7] Skipping local whisper — cloud transcription is used"
+
+# NOTE: WhisPlay HAT driver must be installed separately AFTER setup:
+#   git clone --depth 1 https://github.com/PiSugar/Whisplay.git ~/Whisplay
+#   cd ~/Whisplay/Driver && sudo bash install_wm8960_drive.sh
+#   sudo reboot
 
 # --- 2b. NetworkManager + WiFi permissions ---
 echo ""
