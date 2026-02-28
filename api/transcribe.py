@@ -1,5 +1,8 @@
 """Whisper transcription for Murmur voice entries (cloud or local)."""
 
+import os
+import subprocess
+import tempfile
 import threading
 import traceback
 
@@ -25,6 +28,25 @@ def _get_model():
     return _model
 
 
+def _compress_audio(filepath):
+    """Compress WAV to mp3 for smaller upload. Returns temp path or None."""
+    tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+    tmp.close()
+    try:
+        subprocess.run(
+            ["sox", filepath, "-C", "128", tmp.name],
+            check=True, capture_output=True, timeout=60,
+        )
+        orig = os.path.getsize(filepath)
+        compressed = os.path.getsize(tmp.name)
+        print(f"[transcribe] Compressed {orig // 1024}KB -> {compressed // 1024}KB")
+        return tmp.name
+    except Exception as e:
+        print(f"[transcribe] Compression failed, using original WAV: {e}")
+        os.unlink(tmp.name)
+        return None
+
+
 def transcribe_entry_cloud(entry_id, filepath, client_key=None):
     """Send audio to OpenAI Whisper API and write the result back to the database."""
     api_key = client_key or OPENAI_API_KEY
@@ -32,9 +54,13 @@ def transcribe_entry_cloud(entry_id, filepath, client_key=None):
         print(f"[transcribe] Entry {entry_id} — no OpenAI API key available, skipping cloud transcription")
         update_entry(entry_id, transcription_status="failed")
         return
+
+    compressed = _compress_audio(filepath)
+    upload_path = compressed or filepath
+
     try:
-        print(f"[transcribe] Starting cloud transcription for entry {entry_id}: {filepath}")
-        with open(filepath, "rb") as audio_file:
+        print(f"[transcribe] Starting cloud transcription for entry {entry_id}: {upload_path}")
+        with open(upload_path, "rb") as audio_file:
             resp = requests.post(
                 "https://api.openai.com/v1/audio/transcriptions",
                 headers={"Authorization": f"Bearer {api_key}"},
@@ -42,6 +68,8 @@ def transcribe_entry_cloud(entry_id, filepath, client_key=None):
                 data={"model": "whisper-1"},
                 timeout=300,
             )
+        if not resp.ok:
+            print(f"[transcribe] Entry {entry_id} OpenAI error {resp.status_code}: {resp.text}")
         resp.raise_for_status()
         text = resp.json().get("text", "").strip()
         update_entry(entry_id, transcription=text, transcription_status="done")
@@ -50,6 +78,9 @@ def transcribe_entry_cloud(entry_id, filepath, client_key=None):
         traceback.print_exc()
         update_entry(entry_id, transcription_status="failed")
         print(f"[transcribe] Entry {entry_id} cloud transcription FAILED")
+    finally:
+        if compressed:
+            os.unlink(compressed)
 
 
 def transcribe_entry(entry_id, filepath, client_key=None):
