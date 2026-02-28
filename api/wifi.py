@@ -102,9 +102,9 @@ def scan_networks():
 
 
 def get_saved_networks():
-    """List saved WiFi connection profiles."""
+    """List saved WiFi connection profiles with clean SSID and connection name."""
     rc, out, _ = _run([
-        "nmcli", "-t", "-f", "NAME,TYPE", "connection", "show",
+        "nmcli", "-t", "-f", "NAME,TYPE,802-11-wireless.ssid", "connection", "show",
     ])
     if rc != 0:
         return []
@@ -113,7 +113,10 @@ def get_saved_networks():
     for line in out.splitlines():
         parts = line.split(":")
         if len(parts) >= 2 and "wireless" in parts[1]:
-            saved.append({"ssid": parts[0]})
+            conn_name = parts[0]
+            # The SSID field may be in parts[2], or fall back to extracting from the connection name
+            ssid = parts[2] if len(parts) > 2 and parts[2] else conn_name
+            saved.append({"ssid": ssid, "conn_name": conn_name})
     return saved
 
 
@@ -131,18 +134,26 @@ def _deactivate_hotspot():
             break
 
 
+def _find_connection_name(ssid):
+    """Find the nmcli connection name for a given SSID."""
+    saved = get_saved_networks()
+    for n in saved:
+        if n["ssid"] == ssid:
+            return n["conn_name"]
+    return None
+
+
 def connect_to_network(ssid, password=None):
     """Connect to a WiFi network. Reuses saved profile if it exists."""
     # First, tear down hotspot if active
     _deactivate_hotspot()
 
     # Check if we already have a saved profile for this SSID
-    saved = get_saved_networks()
-    saved_ssids = [n["ssid"] for n in saved]
+    conn_name = _find_connection_name(ssid)
 
-    if ssid in saved_ssids:
-        # Reuse existing profile
-        rc, out, err = _run(["nmcli", "connection", "up", ssid], timeout=SCAN_TIMEOUT)
+    if conn_name:
+        # Reuse existing profile using actual connection name
+        rc, out, err = _run(["nmcli", "connection", "up", conn_name], timeout=SCAN_TIMEOUT)
     elif password:
         # Connect with password
         rc, out, err = _run([
@@ -162,7 +173,9 @@ def connect_to_network(ssid, password=None):
 
 def forget_network(ssid):
     """Remove a saved WiFi connection profile."""
-    rc, out, err = _run(["nmcli", "connection", "delete", ssid])
+    # Look up actual connection name (may differ from SSID on netplan systems)
+    conn_name = _find_connection_name(ssid) or ssid
+    rc, out, err = _run(["nmcli", "connection", "delete", conn_name])
     if rc == 0:
         return {"success": True, "message": f"Forgot {ssid}"}
     else:
