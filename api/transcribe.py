@@ -28,21 +28,21 @@ def _get_model():
     return _model
 
 
-def _compress_audio(filepath):
-    """Compress WAV to mp3 for smaller upload. Returns temp path or None."""
-    tmp = tempfile.NamedTemporaryFile(suffix=".mp3", delete=False)
+def _downsample_audio(filepath):
+    """Downsample to 16kHz mono WAV for smaller upload. Returns temp path or None."""
+    tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
     tmp.close()
     try:
         subprocess.run(
-            ["sox", filepath, "-C", "128", tmp.name],
+            ["sox", filepath, "-r", "16000", "-c", "1", tmp.name],
             check=True, capture_output=True, timeout=60,
         )
         orig = os.path.getsize(filepath)
-        compressed = os.path.getsize(tmp.name)
-        print(f"[transcribe] Compressed {orig // 1024}KB -> {compressed // 1024}KB")
+        small = os.path.getsize(tmp.name)
+        print(f"[transcribe] Downsampled {orig // 1024}KB -> {small // 1024}KB")
         return tmp.name
     except Exception as e:
-        print(f"[transcribe] Compression failed, using original WAV: {e}")
+        print(f"[transcribe] Downsample failed, using original: {e}")
         os.unlink(tmp.name)
         return None
 
@@ -55,8 +55,8 @@ def transcribe_entry_cloud(entry_id, filepath, client_key=None):
         update_entry(entry_id, transcription_status="failed")
         return
 
-    compressed = _compress_audio(filepath)
-    upload_path = compressed or filepath
+    downsampled = _downsample_audio(filepath)
+    upload_path = downsampled or filepath
 
     try:
         print(f"[transcribe] Starting cloud transcription for entry {entry_id}: {upload_path}")
@@ -79,8 +79,8 @@ def transcribe_entry_cloud(entry_id, filepath, client_key=None):
         update_entry(entry_id, transcription_status="failed")
         print(f"[transcribe] Entry {entry_id} cloud transcription FAILED")
     finally:
-        if compressed:
-            os.unlink(compressed)
+        if downsampled:
+            os.unlink(downsampled)
 
 
 def transcribe_entry(entry_id, filepath, client_key=None):
