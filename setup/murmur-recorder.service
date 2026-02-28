@@ -1,0 +1,15 @@
+[Unit]
+Description=Murmur WhisPlay HAT Recorder
+After=murmur-api.service
+
+[Service]
+Type=simple
+User=murmur
+WorkingDirectory=/home/murmur/murmur
+ExecStart=/usr/bin/python3 murmur_recorder.py
+Restart=on-failure
+RestartSec=5
+Environment=PYTHONUNBUFFERED=1
+
+[Install]
+WantedBy=multi-user.target

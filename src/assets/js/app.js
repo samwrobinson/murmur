@@ -5,7 +5,7 @@
  * of its container element before running.
  */
 
-const API = window.MURMUR_API || "";
+const API = localStorage.getItem("murmur_pi_url") || window.MURMUR_API || "";
 
 // ─────────────────────────────────────────────────────────────────────────────
 // API Key helper
@@ -118,23 +118,30 @@ async function initTimeline() {
     const statsEl = document.getElementById("timeline-stats");
     if (!container) return;
 
-    // Fetch entries and stats in parallel
-    const [entriesRes, statsRes] = await Promise.all([
-        fetch(`${API}/api/entries`),
-        fetch(`${API}/api/stats`),
-    ]);
-    const entriesData = await entriesRes.json();
-    const stats = await statsRes.json();
+    try {
+        // Fetch entries and stats in parallel
+        const [entriesRes, statsRes] = await Promise.all([
+            fetch(`${API}/api/entries`),
+            fetch(`${API}/api/stats`),
+        ]);
+        const entriesData = await entriesRes.json();
+        const stats = await statsRes.json();
 
-    // Render stats line
-    if (statsEl) {
-        statsEl.textContent = `${stats.total_entries} entries \u00B7 ${stats.total_favorites} favorites \u00B7 ${stats.streak} day streak`;
-    }
+        // Render stats line
+        if (statsEl) {
+            statsEl.textContent = `${stats.total_entries} entries \u00B7 ${stats.total_favorites} favorites \u00B7 ${stats.streak} day streak`;
+        }
 
-    // Render entry cards
-    container.innerHTML = "";
-    for (const entry of entriesData.entries) {
-        container.appendChild(renderTimelineCard(entry));
+        // Render entry cards
+        container.innerHTML = "";
+        for (const entry of entriesData.entries) {
+            container.appendChild(renderTimelineCard(entry));
+        }
+    } catch (err) {
+        if (statsEl) {
+            statsEl.textContent = `API: ${API || "(empty)"} — Error: ${err.message}`;
+            statsEl.style.color = "red";
+        }
     }
 }
 
@@ -636,6 +643,60 @@ function initSettings() {
     const statusEl = document.getElementById("key-status");
     const toggleBtn = document.getElementById("toggle-key-vis");
 
+    // --- Pi Address ---
+    const piInput = document.getElementById("pi-url");
+    const piSaveBtn = document.getElementById("save-pi-btn");
+    const piStatus = document.getElementById("pi-status");
+
+    if (piInput) {
+        const existingPi = localStorage.getItem("murmur_pi_url") || "";
+        if (existingPi) piInput.value = existingPi;
+
+        piSaveBtn.addEventListener("click", async () => {
+            const url = piInput.value.trim().replace(/\/+$/, ""); // strip trailing slash
+            piSaveBtn.disabled = true;
+
+            if (!url) {
+                localStorage.removeItem("murmur_pi_url");
+                if (piStatus) {
+                    piStatus.textContent = "Cleared — using same-host API.";
+                    piStatus.style.color = "";
+                }
+                piSaveBtn.disabled = false;
+                return;
+            }
+
+            // Test connection
+            if (piStatus) {
+                piStatus.textContent = "Testing connection...";
+                piStatus.style.color = "";
+            }
+            try {
+                const res = await fetch(`${url}/api/stats`, { signal: AbortSignal.timeout(5000) });
+                if (res.ok) {
+                    localStorage.setItem("murmur_pi_url", url);
+                    if (piStatus) {
+                        piStatus.textContent = "Connected! Pi address saved.";
+                        piStatus.style.color = "var(--secondary)";
+                    }
+                } else {
+                    if (piStatus) {
+                        piStatus.textContent = `Error: server returned ${res.status}`;
+                        piStatus.style.color = "var(--error, #e74c3c)";
+                    }
+                }
+            } catch (err) {
+                if (piStatus) {
+                    piStatus.textContent = `Connection failed: ${err.message}`;
+                    piStatus.style.color = "var(--error, #e74c3c)";
+                }
+            }
+            piSaveBtn.disabled = false;
+        });
+    }
+
+    // --- OpenAI Key ---
+
     // Load existing key
     const existing = getOpenAIKey();
     if (existing) keyInput.value = existing;
@@ -664,6 +725,14 @@ function initSettings() {
 // ─────────────────────────────────────────────────────────────────────────────
 
 document.addEventListener("DOMContentLoaded", () => {
+    // First-run detection: if not on the Pi (no same-host API) and no Pi address configured, show setup
+    const isCapacitor = window.location.protocol === "capacitor:" || window.location.protocol === "ionic:";
+    const isLocalhost = window.location.hostname === "localhost" && !window.location.port;
+    if ((isCapacitor || isLocalhost) && !localStorage.getItem("murmur_pi_url")) {
+        const banner = document.getElementById("cap-setup-banner");
+        if (banner) banner.style.display = "";
+    }
+
     initTimeline();
     initSearch();
     initNewEntry();

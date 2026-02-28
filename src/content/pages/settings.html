@@ -24,6 +24,17 @@ tags: "sitemap"
             <h2 class="cs-title">Settings</h2>
         </div>
 
+        <!-- Pi Address (for Capacitor / remote access) -->
+        <div class="cs-notes-group">
+            <label class="cs-label" for="pi-url">Pi Address</label>
+            <p class="cs-save-status" style="text-align: left; min-height: 0;">URL of your Murmur Pi (e.g. <code>http://murmur.local</code>). Leave blank when using Murmur directly on the Pi.</p>
+            <input class="cs-tag-input" id="pi-url" type="url" placeholder="http://murmur.local" autocomplete="off" style="font-size: 1rem;">
+        </div>
+        <button class="cs-button-solid cs-save-btn" id="save-pi-btn" type="button">Save Address</button>
+        <p class="cs-save-status" id="pi-status"></p>
+
+        <hr style="border: none; border-top: 1px solid var(--border, #e0e0e0); margin: 1.5rem 0;">
+
         <!-- OpenAI API Key -->
         <div class="cs-notes-group">
             <label class="cs-label" for="openai-key">OpenAI API Key</label>

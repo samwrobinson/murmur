@@ -40,6 +40,25 @@
             if (window.MURMUR_API.includes("localhost")) {
                 window.MURMUR_API = window.MURMUR_API.replace("localhost", location.hostname);
             }
+            // Capacitor fix: its file server doesn't resolve directory URLs to index.html
+            if (window.location.protocol === "capacitor:") {
+                document.addEventListener("click", function(e) {
+                    var link = e.target.closest("a[href]");
+                    if (!link) return;
+                    var href = link.getAttribute("href");
+                    if (!href || !href.startsWith("/")) return;
+                    // Split off query string and hash
+                    var parts = href.split("?");
+                    var path = parts[0];
+                    var query = parts.length > 1 ? "?" + parts.slice(1).join("?") : "";
+                    // Only rewrite directory-style paths (no file extension)
+                    if (path.indexOf(".") === -1) {
+                        e.preventDefault();
+                        path = path.endsWith("/") ? path + "index.html" : path + "/index.html";
+                        window.location.href = path + query;
+                    }
+                });
+            }
         </script>
         <script defer src="/assets/js/nav.js"></script>
 
@@ -53,6 +72,19 @@
 
         {% include "sections/header.html" %}
         <main id="main">
+            <!-- Capacitor first-run: prompt to set Pi address -->
+            <div id="cap-setup-banner" style="display:none; background: var(--primary); color: #fff; padding: 1rem; text-align: center; border-radius: 0.5rem; margin: 5rem 1rem 1rem;">
+                <p style="margin: 0 0 0.75rem; font-weight: 600;">Connect to your Pi</p>
+                <input id="cap-pi-url" type="url" placeholder="http://murmur.local" style="width: 100%; padding: 0.5rem; border-radius: 0.25rem; border: none; font-size: 1rem; box-sizing: border-box;">
+                <button onclick="
+                    var url = document.getElementById('cap-pi-url').value.trim().replace(/\/+$/, '');
+                    if (url) {
+                        localStorage.setItem('murmur_pi_url', url);
+                        this.textContent = 'Saved! Reloading...';
+                        setTimeout(function(){ location.reload(); }, 500);
+                    }
+                " style="margin-top: 0.5rem; padding: 0.5rem 1.5rem; border: 2px solid #fff; background: transparent; color: #fff; border-radius: 0.25rem; font-size: 1rem; cursor: pointer; width: 100%;">Save & Connect</button>
+            </div>
             {% block body %}{% endblock %}
         </main>
         {% include "sections/footer.html" %}
