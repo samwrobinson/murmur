@@ -31,17 +31,7 @@ apt-get install -y \
     sox
 
 echo ""
-echo "[2/7] Installing Python packages via pip..."
-# openai-whisper is only needed if using local transcription
-# Skip if WHISPER_USE_CLOUD=True (default) — too heavy for Zero 2W
-if python3 -c "from config import WHISPER_USE_CLOUD; exit(0 if WHISPER_USE_CLOUD else 1)" 2>/dev/null; then
-    echo "  Cloud transcription enabled — skipping local whisper install"
-else
-    echo "  Installing openai-whisper (this takes a while)..."
-    python3 -m pip install --break-system-packages openai-whisper || {
-        echo "  WARNING: whisper install failed — cloud transcription will be used"
-    }
-fi
+echo "[2/7] Skipping local whisper — cloud transcription is used"
 
 # --- 3. Create directories ---
 echo ""
