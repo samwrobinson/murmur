@@ -1204,6 +1204,178 @@
     }
 }
 
+/*-- -------------------------- -->
+<---        WiFi Settings        -->
+<--- -------------------------- -*/
+
+/* Mobile - 360px */
+@media only screen and (min-width: 0rem) {
+    .wifi-status-card {
+        width: 100%;
+        padding: clamp(0.75rem, 2vw, 1rem);
+        background-color: var(--cardBg);
+        border: 1px solid var(--border);
+        border-radius: clamp(0.5rem, 1vw, 0.75rem);
+        display: flex;
+        flex-direction: column;
+        gap: (8/16rem);
+    }
+
+    .wifi-status-row {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        padding: (4/16rem) 0;
+    }
+
+    .wifi-status-label {
+        font-size: (13/16rem);
+        color: var(--textMuted);
+    }
+
+    .wifi-status-value {
+        font-size: (14/16rem);
+        font-weight: 600;
+        color: var(--headerColor);
+    }
+
+    .wifi-network-list {
+        width: 100%;
+        display: flex;
+        flex-direction: column;
+        gap: (6/16rem);
+        margin-top: (12/16rem);
+    }
+
+    .wifi-network-item {
+        width: 100%;
+        padding: clamp(0.625rem, 1.5vw, 0.75rem) clamp(0.75rem, 2vw, 1rem);
+        background-color: var(--cardBg);
+        border: 1px solid var(--border);
+        border-radius: clamp(0.5rem, 1vw, 0.75rem);
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: (12/16rem);
+        transition: border-color 0.3s;
+
+        &:hover {
+            border-color: var(--primary);
+        }
+    }
+
+    .wifi-network-info {
+        display: flex;
+        flex-direction: column;
+        gap: (2/16rem);
+        min-width: 0;
+    }
+
+    .wifi-network-name {
+        font-size: (14/16rem);
+        font-weight: 600;
+        color: var(--headerColor);
+        white-space: nowrap;
+        overflow: hidden;
+        text-overflow: ellipsis;
+    }
+
+    .wifi-network-meta {
+        font-size: (12/16rem);
+        color: var(--textMuted);
+    }
+
+    .wifi-connect-btn,
+    .wifi-forget-btn {
+        font-family: var(--bodyFont);
+        font-size: (13/16rem);
+        font-weight: 600;
+        padding: (6/16rem) (14/16rem);
+        border-radius: (100/16rem);
+        cursor: pointer;
+        flex-shrink: 0;
+        transition: background-color 0.3s, color 0.3s, border-color 0.3s;
+    }
+
+    .wifi-connect-btn {
+        color: #fff;
+        background-color: var(--primary);
+        border: 1px solid var(--primary);
+
+        &:hover {
+            opacity: 0.9;
+        }
+
+        &:disabled {
+            opacity: 0.6;
+            cursor: not-allowed;
+        }
+    }
+
+    .wifi-forget-btn {
+        color: var(--textMuted);
+        background: none;
+        border: 1px solid var(--border);
+
+        &:hover {
+            border-color: #c0392b;
+            color: #c0392b;
+        }
+    }
+
+    .wifi-modal-overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.5);
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        z-index: 1000;
+        padding: (16/16rem);
+    }
+
+    .wifi-modal {
+        width: 100%;
+        max-width: (400/16rem);
+        padding: clamp(1.25rem, 3vw, 1.75rem);
+        background-color: var(--cardBg, #fff);
+        border-radius: clamp(0.75rem, 2vw, 1rem);
+        display: flex;
+        flex-direction: column;
+        gap: (16/16rem);
+    }
+
+    .wifi-modal-title {
+        font-size: (18/16rem);
+        font-weight: 700;
+        color: var(--headerColor);
+        margin: 0;
+    }
+
+    .wifi-modal-buttons {
+        display: flex;
+        gap: (12/16rem);
+    }
+
+    .wifi-modal-cancel {
+        font-family: var(--bodyFont);
+        font-size: (14/16rem);
+        font-weight: 600;
+        padding: clamp(0.625rem, 1.2vw, 0.75rem) clamp(1.25rem, 2.5vw, 1.75rem);
+        color: var(--textMuted);
+        background: none;
+        border: 1px solid var(--border);
+        border-radius: (100/16rem);
+        cursor: pointer;
+        transition: border-color 0.3s, color 0.3s;
+
+        &:hover {
+            border-color: var(--headerColor);
+            color: var(--headerColor);
+        }
+    }
+}
+
 /* Tablet - 768px */
 @media only screen and (min-width: 48rem) {
     #entry-detail-1 {

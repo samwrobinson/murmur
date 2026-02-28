@@ -6,6 +6,10 @@ import threading
 
 from config import FLASK_HOST, FLASK_PORT, AUDIO_DIR, TRANSCRIBE_LOCALLY
 from transcribe import transcribe_entry
+from wifi import (
+    get_wifi_status, scan_networks, get_saved_networks,
+    connect_to_network, forget_network,
+)
 from db import (
     init_db, get_entries, get_entry, create_entry, update_entry, delete_entry,
     toggle_favorite, search_entries, get_on_this_day, add_tag, remove_tag,
@@ -229,6 +233,46 @@ def api_stats():
 def api_prompt():
     prompt = get_random_prompt()
     return jsonify(dict(prompt) if prompt else {})
+
+
+# --- WiFi ---
+
+@app.route("/api/wifi/status")
+def api_wifi_status():
+    return jsonify(get_wifi_status())
+
+
+@app.route("/api/wifi/scan")
+def api_wifi_scan():
+    return jsonify({"networks": scan_networks()})
+
+
+@app.route("/api/wifi/saved")
+def api_wifi_saved():
+    return jsonify({"networks": get_saved_networks()})
+
+
+@app.route("/api/wifi/connect", methods=["POST"])
+def api_wifi_connect():
+    data = request.get_json() or {}
+    ssid = data.get("ssid", "").strip()
+    password = data.get("password", "").strip() or None
+    if not ssid:
+        return jsonify({"success": False, "message": "SSID required"}), 400
+    result = connect_to_network(ssid, password)
+    status_code = 200 if result["success"] else 502
+    return jsonify(result), status_code
+
+
+@app.route("/api/wifi/forget", methods=["POST"])
+def api_wifi_forget():
+    data = request.get_json() or {}
+    ssid = data.get("ssid", "").strip()
+    if not ssid:
+        return jsonify({"success": False, "message": "SSID required"}), 400
+    result = forget_network(ssid)
+    status_code = 200 if result["success"] else 502
+    return jsonify(result), status_code
 
 
 # --- Audio files ---

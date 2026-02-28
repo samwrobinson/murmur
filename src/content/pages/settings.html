@@ -51,6 +51,56 @@ tags: "sitemap"
         </div>
         <button class="cs-button-solid cs-save-btn" id="save-key-btn" type="button">Save Key</button>
         <p class="cs-save-status" id="key-status"></p>
+
+        <!-- WiFi Management (hidden by default, shown only when on Pi) -->
+        <div id="wifi-section" style="display: none; width: 100%;">
+            <hr style="border: none; border-top: 1px solid var(--border, #e0e0e0); margin: 1.5rem 0;">
+
+            <!-- Current connection status -->
+            <div class="cs-notes-group">
+                <label class="cs-label">WiFi</label>
+                <div class="wifi-status-card" id="wifi-status-card">
+                    <div class="wifi-status-row">
+                        <span class="wifi-status-label">Network</span>
+                        <span class="wifi-status-value" id="wifi-ssid">--</span>
+                    </div>
+                    <div class="wifi-status-row">
+                        <span class="wifi-status-label">IP Address</span>
+                        <span class="wifi-status-value" id="wifi-ip">--</span>
+                    </div>
+                    <div class="wifi-status-row">
+                        <span class="wifi-status-label">Signal</span>
+                        <span class="wifi-status-value" id="wifi-signal">--</span>
+                    </div>
+                </div>
+            </div>
+
+            <!-- Scan for networks -->
+            <button class="cs-button-solid cs-save-btn" id="wifi-scan-btn" type="button">Scan for Networks</button>
+            <div id="wifi-networks" class="wifi-network-list" style="display: none;"></div>
+
+            <!-- Saved networks -->
+            <div class="cs-notes-group" id="wifi-saved-section" style="display: none; margin-top: 1rem;">
+                <label class="cs-label">Saved Networks</label>
+                <div id="wifi-saved-list" class="wifi-network-list"></div>
+            </div>
+        </div>
+
+        <!-- WiFi password modal -->
+        <div class="wifi-modal-overlay" id="wifi-modal" style="display: none;">
+            <div class="wifi-modal">
+                <h3 class="wifi-modal-title">Connect to <span id="wifi-modal-ssid"></span></h3>
+                <div class="cs-notes-group">
+                    <label class="cs-label" for="wifi-password">Password</label>
+                    <input class="cs-tag-input" id="wifi-password" type="password" placeholder="Enter WiFi password" autocomplete="off" style="font-size: 1rem;">
+                </div>
+                <div class="wifi-modal-buttons">
+                    <button class="cs-button-solid cs-save-btn" id="wifi-modal-connect" type="button">Connect</button>
+                    <button class="wifi-modal-cancel" id="wifi-modal-cancel" type="button">Cancel</button>
+                </div>
+                <p class="cs-save-status" id="wifi-modal-status"></p>
+            </div>
+        </div>
     </div>
 </section>
 

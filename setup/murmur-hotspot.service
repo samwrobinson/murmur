@@ -1,0 +1,12 @@
+[Unit]
+Description=Murmur fallback WiFi hotspot
+After=NetworkManager.service
+Wants=NetworkManager.service
+
+[Service]
+Type=oneshot
+ExecStart=/home/murmur/murmur/setup/murmur-hotspot.sh
+RemainAfterExit=yes
+
+[Install]
+WantedBy=multi-user.target

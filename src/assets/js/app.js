@@ -721,6 +721,216 @@ function initSettings() {
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
+// WiFi management (settings page)
+// ─────────────────────────────────────────────────────────────────────────────
+
+async function initWiFi() {
+    const section = document.getElementById("wifi-section");
+    if (!section) return;
+
+    // Probe the WiFi API — if it fails, we're not on the Pi, so hide the section
+    try {
+        const probe = await fetch(`${API}/api/wifi/status`, { signal: AbortSignal.timeout(3000) });
+        if (!probe.ok) return;
+        const status = await probe.json();
+        section.style.display = "";
+        renderWiFiStatus(status);
+    } catch (_) {
+        return; // Not on Pi or API unreachable — keep section hidden
+    }
+
+    // Scan button
+    const scanBtn = document.getElementById("wifi-scan-btn");
+    scanBtn.addEventListener("click", async () => {
+        scanBtn.disabled = true;
+        scanBtn.textContent = "Scanning...";
+        try {
+            const res = await fetch(`${API}/api/wifi/scan`);
+            const data = await res.json();
+            renderWiFiNetworks(data.networks);
+        } catch (err) {
+            console.error("WiFi scan error:", err);
+        }
+        scanBtn.disabled = false;
+        scanBtn.textContent = "Scan for Networks";
+    });
+
+    // Load saved networks
+    loadSavedNetworks();
+
+    // Password modal handlers
+    const modal = document.getElementById("wifi-modal");
+    const modalCancel = document.getElementById("wifi-modal-cancel");
+    const modalConnect = document.getElementById("wifi-modal-connect");
+    const modalPassword = document.getElementById("wifi-password");
+    const modalStatus = document.getElementById("wifi-modal-status");
+
+    modalCancel.addEventListener("click", () => {
+        modal.style.display = "none";
+        modalPassword.value = "";
+        modalStatus.textContent = "";
+    });
+
+    modalConnect.addEventListener("click", async () => {
+        const ssid = document.getElementById("wifi-modal-ssid").textContent;
+        const password = modalPassword.value;
+        if (!password) {
+            modalStatus.textContent = "Password required.";
+            return;
+        }
+        await doWiFiConnect(ssid, password, modalConnect, modalStatus);
+    });
+
+    modalPassword.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") modalConnect.click();
+    });
+}
+
+function renderWiFiStatus(status) {
+    const ssidEl = document.getElementById("wifi-ssid");
+    const ipEl = document.getElementById("wifi-ip");
+    const signalEl = document.getElementById("wifi-signal");
+
+    if (status.active) {
+        ssidEl.textContent = status.ssid || "Unknown";
+        ipEl.textContent = status.ip || "--";
+        signalEl.textContent = status.signal != null ? `${status.signal}%` : "--";
+    } else {
+        ssidEl.textContent = "Not connected";
+        ipEl.textContent = "--";
+        signalEl.textContent = "--";
+    }
+}
+
+function renderWiFiNetworks(networks) {
+    const container = document.getElementById("wifi-networks");
+    container.style.display = "";
+    container.innerHTML = "";
+
+    if (!networks.length) {
+        container.innerHTML = '<div class="wifi-network-item"><span class="wifi-network-name">No networks found</span></div>';
+        return;
+    }
+
+    for (const net of networks) {
+        const item = document.createElement("div");
+        item.className = "wifi-network-item";
+        item.innerHTML = `
+            <div class="wifi-network-info">
+                <span class="wifi-network-name">${escapeHtml(net.ssid)}</span>
+                <span class="wifi-network-meta">${net.signal}% ${net.secured ? "&#x1f512;" : "Open"}</span>
+            </div>
+            <button class="wifi-connect-btn" type="button">Connect</button>
+        `;
+        item.querySelector(".wifi-connect-btn").addEventListener("click", () => {
+            if (net.secured) {
+                showPasswordModal(net.ssid);
+            } else {
+                doWiFiConnect(net.ssid, null, item.querySelector(".wifi-connect-btn"));
+            }
+        });
+        container.appendChild(item);
+    }
+}
+
+function showPasswordModal(ssid) {
+    const modal = document.getElementById("wifi-modal");
+    document.getElementById("wifi-modal-ssid").textContent = ssid;
+    document.getElementById("wifi-password").value = "";
+    document.getElementById("wifi-modal-status").textContent = "";
+    modal.style.display = "";
+}
+
+async function doWiFiConnect(ssid, password, btn, statusEl) {
+    const originalText = btn ? btn.textContent : "";
+    if (btn) { btn.disabled = true; btn.textContent = "Connecting..."; }
+    if (statusEl) statusEl.textContent = "Connecting...";
+
+    // Warn user about potential disconnection
+    const currentSSID = document.getElementById("wifi-ssid").textContent;
+    if (currentSSID && currentSSID !== "Not connected" && currentSSID !== ssid) {
+        if (!confirm(`Connecting to "${ssid}" will disconnect you from "${currentSSID}". You may need to reconnect your browser to the new network. Continue?`)) {
+            if (btn) { btn.disabled = false; btn.textContent = originalText; }
+            if (statusEl) statusEl.textContent = "";
+            return;
+        }
+    }
+
+    try {
+        const body = { ssid };
+        if (password) body.password = password;
+        const res = await fetch(`${API}/api/wifi/connect`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify(body),
+        });
+        const data = await res.json();
+        if (data.success) {
+            if (statusEl) statusEl.textContent = "Connected!";
+            // Close modal if open
+            document.getElementById("wifi-modal").style.display = "none";
+            // Refresh status and saved networks after a short delay
+            setTimeout(async () => {
+                try {
+                    const statusRes = await fetch(`${API}/api/wifi/status`);
+                    const status = await statusRes.json();
+                    renderWiFiStatus(status);
+                    loadSavedNetworks();
+                } catch (_) {
+                    // May have lost connection if network switched
+                    renderWiFiStatus({ active: false });
+                    if (statusEl) statusEl.textContent = "Connected, but browser may have lost access. Reconnect to the new network.";
+                }
+            }, 2000);
+        } else {
+            if (statusEl) statusEl.textContent = data.message || "Connection failed.";
+        }
+    } catch (err) {
+        if (statusEl) statusEl.textContent = "Connection lost — you may need to reconnect to the new network.";
+    }
+    if (btn) { btn.disabled = false; btn.textContent = originalText; }
+}
+
+async function loadSavedNetworks() {
+    try {
+        const res = await fetch(`${API}/api/wifi/saved`);
+        const data = await res.json();
+        const section = document.getElementById("wifi-saved-section");
+        const list = document.getElementById("wifi-saved-list");
+
+        if (data.networks.length === 0) {
+            section.style.display = "none";
+            return;
+        }
+
+        section.style.display = "";
+        list.innerHTML = "";
+        for (const net of data.networks) {
+            const item = document.createElement("div");
+            item.className = "wifi-network-item";
+            item.innerHTML = `
+                <span class="wifi-network-name">${escapeHtml(net.ssid)}</span>
+                <button class="wifi-forget-btn" type="button">Forget</button>
+            `;
+            item.querySelector(".wifi-forget-btn").addEventListener("click", async () => {
+                if (!confirm(`Forget "${net.ssid}"? You'll need to re-enter the password to reconnect.`)) return;
+                try {
+                    await fetch(`${API}/api/wifi/forget`, {
+                        method: "POST",
+                        headers: { "Content-Type": "application/json" },
+                        body: JSON.stringify({ ssid: net.ssid }),
+                    });
+                    loadSavedNetworks();
+                } catch (err) {
+                    console.error("Forget network error:", err);
+                }
+            });
+            list.appendChild(item);
+        }
+    } catch (_) {}
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
 // Init — run the right page initializer based on what's in the DOM
 // ─────────────────────────────────────────────────────────────────────────────
 
@@ -738,4 +948,5 @@ document.addEventListener("DOMContentLoaded", () => {
     initNewEntry();
     initEntryDetail();
     initSettings();
+    initWiFi();
 });

@@ -33,6 +33,30 @@ apt-get install -y \
 echo ""
 echo "[2/7] Skipping local whisper — cloud transcription is used"
 
+# --- 2b. NetworkManager + WiFi permissions ---
+echo ""
+echo "[2b/7] Configuring NetworkManager and WiFi permissions..."
+
+# Ensure NetworkManager is active (disable dhcpcd if present)
+if systemctl is-enabled --quiet dhcpcd 2>/dev/null; then
+    echo "  Disabling dhcpcd in favor of NetworkManager..."
+    systemctl disable --now dhcpcd 2>/dev/null || true
+fi
+systemctl enable NetworkManager
+systemctl start NetworkManager || true
+
+# Polkit rule so the murmur user can manage WiFi without sudo
+mkdir -p /etc/polkit-1/rules.d
+cat > /etc/polkit-1/rules.d/50-murmur-wifi.rules << 'POLKIT_EOF'
+polkit.addRule(function(action, subject) {
+    if (action.id.indexOf("org.freedesktop.NetworkManager") === 0 &&
+        subject.user === "murmur") {
+        return polkit.Result.YES;
+    }
+});
+POLKIT_EOF
+echo "  Polkit rule installed."
+
 # --- 3. Create directories ---
 echo ""
 echo "[3/7] Creating directories..."
@@ -68,8 +92,10 @@ echo "[6/7] Installing systemd services..."
 cp "$MURMUR_HOME/setup/murmur-api.service" /etc/systemd/system/
 cp "$MURMUR_HOME/setup/murmur-sync.service" /etc/systemd/system/
 cp "$MURMUR_HOME/setup/murmur-recorder.service" /etc/systemd/system/
+cp "$MURMUR_HOME/setup/murmur-hotspot.service" /etc/systemd/system/
+chmod +x "$MURMUR_HOME/setup/murmur-hotspot.sh"
 systemctl daemon-reload
-systemctl enable murmur-api murmur-sync murmur-recorder
+systemctl enable murmur-api murmur-sync murmur-recorder murmur-hotspot
 systemctl start murmur-api
 systemctl start murmur-sync
 # Recorder starts but may show errors until reboot loads WM8960 overlay
