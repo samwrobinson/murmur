@@ -40,7 +40,7 @@ def transcribe_entry_cloud(entry_id, filepath, client_key=None):
                 headers={"Authorization": f"Bearer {api_key}"},
                 files={"file": audio_file},
                 data={"model": "whisper-1"},
-                timeout=60,
+                timeout=300,
             )
         resp.raise_for_status()
         text = resp.json().get("text", "").strip()
