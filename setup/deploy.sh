@@ -34,11 +34,13 @@ echo "[2/3] Uploading to Pi ($PI_HOST)..."
 scp -r public/ "$PI_HOST:$PI_DIR/"
 echo "  Frontend uploaded."
 
-# --- 3. Upload recorder script ---
+# --- 3. Upload API, setup, and recorder ---
 echo ""
-echo "[3/3] Uploading recorder script..."
+echo "[3/3] Uploading API, setup, and recorder..."
+scp -r api/ "$PI_HOST:$PI_DIR/"
+scp -r setup/ "$PI_HOST:$PI_DIR/"
 scp murmur_recorder.py "$PI_HOST:$PI_DIR/"
-echo "  Recorder uploaded."
+echo "  Files uploaded."
 
 echo ""
 echo "=============================="

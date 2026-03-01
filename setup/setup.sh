@@ -70,6 +70,8 @@ mkdir -p "$SHARE_DIR/favorites"
 mkdir -p "$MURMUR_HOME/api/audio"
 chown -R murmur:murmur "$SHARE_DIR"
 chown -R murmur:murmur "$MURMUR_HOME"
+# Allow nginx (www-data) to traverse into public/
+chmod o+x /home/murmur /home/murmur/murmur /home/murmur/murmur/public
 
 # --- 4. nginx ---
 echo ""

@@ -79,6 +79,24 @@ tags: "sitemap"
             <button class="cs-button-solid cs-save-btn" id="wifi-scan-btn" type="button">Scan for Networks</button>
             <div id="wifi-networks" class="wifi-network-list" style="display: none;"></div>
 
+            <!-- Add network manually -->
+            <button class="cs-button-solid cs-save-btn" id="wifi-add-btn" type="button" style="margin-top: 0.75rem;">Add Network Manually</button>
+            <div id="wifi-add-form" style="display: none; margin-top: 0.75rem; width: 100%;">
+                <div class="cs-notes-group">
+                    <label class="cs-label" for="wifi-add-ssid">Network Name</label>
+                    <input class="cs-tag-input" id="wifi-add-ssid" type="text" placeholder="e.g. My Home WiFi" autocomplete="off" style="font-size: 1rem;">
+                </div>
+                <div class="cs-notes-group" style="margin-top: 0.5rem;">
+                    <label class="cs-label" for="wifi-add-password">Password</label>
+                    <input class="cs-tag-input" id="wifi-add-password" type="password" placeholder="Leave blank for open networks" autocomplete="off" style="font-size: 1rem;">
+                </div>
+                <div style="display: flex; gap: 0.5rem; margin-top: 0.5rem;">
+                    <button class="cs-button-solid cs-save-btn" id="wifi-add-save" type="button">Save Network</button>
+                    <button class="wifi-modal-cancel" id="wifi-add-cancel" type="button">Cancel</button>
+                </div>
+                <p class="cs-save-status" id="wifi-add-status"></p>
+            </div>
+
             <!-- Saved networks -->
             <div class="cs-notes-group" id="wifi-saved-section" style="display: none; margin-top: 1rem;">
                 <label class="cs-label">Saved Networks</label>

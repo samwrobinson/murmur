@@ -7,7 +7,7 @@ When Murmur can't connect to a known WiFi network, it automatically creates its 
 ### Steps
 
 1. **Power on your Murmur Pi** and wait about 30 seconds
-2. On your phone or laptop, look for a WiFi network called **"Murmur-Setup"** and connect to it
+2. On your phone or laptop, look for a WiFi network called **"Murmur-Setup"** and connect to it (password: **murmur42**)
 3. Open a browser and go to **http://10.42.0.1/settings**
 4. Scroll down to the **WiFi** section
 5. Tap **"Scan for Networks"** — your home WiFi should appear in the list
@@ -17,13 +17,24 @@ When Murmur can't connect to a known WiFi network, it automatically creates its 
 8. Switch your phone/laptop back to your regular WiFi network
 9. Visit **http://murmur.local** to confirm everything is working
 
+## Pre-Saving a Network (e.g. Before Taking Murmur Home)
+
+You can add your home WiFi before leaving:
+
+1. Visit **http://murmur.local/settings** while connected to the same WiFi as Murmur
+2. In the WiFi section, tap **"Add Network Manually"**
+3. Enter the network name (SSID) and password
+4. Tap **Save Network**
+5. When you plug Murmur in at home, it will auto-connect — no hotspot step needed
+
 ## Switching WiFi Networks (e.g. Moving to a New Home)
 
 If you move Murmur to a location with a different WiFi network:
 
 1. Just plug it in and wait 30 seconds
 2. The "Murmur-Setup" hotspot will appear automatically since Murmur doesn't know the new network
-3. Follow the same steps above to connect it to the new WiFi
+3. Connect to "Murmur-Setup" (password: **murmur42**)
+4. Follow the same first-time setup steps above
 
 ## Managing Saved Networks
 

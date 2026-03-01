@@ -8,7 +8,7 @@ from config import FLASK_HOST, FLASK_PORT, AUDIO_DIR, TRANSCRIBE_LOCALLY
 from transcribe import transcribe_entry
 from wifi import (
     get_wifi_status, scan_networks, get_saved_networks,
-    connect_to_network, forget_network,
+    connect_to_network, forget_network, add_network,
 )
 from db import (
     init_db, get_entries, get_entry, create_entry, update_entry, delete_entry,
@@ -260,6 +260,18 @@ def api_wifi_connect():
     if not ssid:
         return jsonify({"success": False, "message": "SSID required"}), 400
     result = connect_to_network(ssid, password)
+    status_code = 200 if result["success"] else 502
+    return jsonify(result), status_code
+
+
+@app.route("/api/wifi/add", methods=["POST"])
+def api_wifi_add():
+    data = request.get_json() or {}
+    ssid = data.get("ssid", "").strip()
+    password = data.get("password", "").strip() or None
+    if not ssid:
+        return jsonify({"success": False, "message": "Network name required"}), 400
+    result = add_network(ssid, password)
     status_code = 200 if result["success"] else 502
     return jsonify(result), status_code
 

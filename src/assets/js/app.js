@@ -784,6 +784,65 @@ async function initWiFi() {
     modalPassword.addEventListener("keydown", (e) => {
         if (e.key === "Enter") modalConnect.click();
     });
+
+    // Add network manually form
+    const addBtn = document.getElementById("wifi-add-btn");
+    const addForm = document.getElementById("wifi-add-form");
+    const addSave = document.getElementById("wifi-add-save");
+    const addCancel = document.getElementById("wifi-add-cancel");
+    const addSSID = document.getElementById("wifi-add-ssid");
+    const addPassword = document.getElementById("wifi-add-password");
+    const addStatus = document.getElementById("wifi-add-status");
+
+    addBtn.addEventListener("click", () => {
+        addForm.style.display = "";
+        addBtn.style.display = "none";
+        addSSID.focus();
+    });
+
+    addCancel.addEventListener("click", () => {
+        addForm.style.display = "none";
+        addBtn.style.display = "";
+        addSSID.value = "";
+        addPassword.value = "";
+        addStatus.textContent = "";
+    });
+
+    addSave.addEventListener("click", async () => {
+        const ssid = addSSID.value.trim();
+        if (!ssid) {
+            addStatus.textContent = "Network name is required.";
+            return;
+        }
+        addSave.disabled = true;
+        addSave.textContent = "Saving...";
+        addStatus.textContent = "";
+        try {
+            const body = { ssid };
+            const pw = addPassword.value.trim();
+            if (pw) body.password = pw;
+            const res = await fetch(`${API}/api/wifi/add`, {
+                method: "POST",
+                headers: { "Content-Type": "application/json" },
+                body: JSON.stringify(body),
+            });
+            const data = await res.json();
+            addStatus.textContent = data.message || (data.success ? "Saved!" : "Failed.");
+            if (data.success) {
+                addSSID.value = "";
+                addPassword.value = "";
+                loadSavedNetworks();
+            }
+        } catch (err) {
+            addStatus.textContent = "Error saving network.";
+        }
+        addSave.disabled = false;
+        addSave.textContent = "Save Network";
+    });
+
+    addPassword.addEventListener("keydown", (e) => {
+        if (e.key === "Enter") addSave.click();
+    });
 }
 
 function renderWiFiStatus(status) {

@@ -171,6 +171,36 @@ def connect_to_network(ssid, password=None):
         return {"success": False, "message": err or "Connection failed"}
 
 
+def add_network(ssid, password=None):
+    """Pre-save a WiFi network profile so NetworkManager will auto-connect when in range."""
+    # Remove existing profile for this SSID first to avoid duplicates
+    conn_name = _find_connection_name(ssid)
+    if conn_name:
+        _run(["nmcli", "connection", "delete", conn_name])
+
+    cmd = [
+        "nmcli", "connection", "add",
+        "type", "wifi",
+        "con-name", ssid,
+        "ssid", ssid,
+        "wifi-sec.key-mgmt", "wpa-psk",
+        "wifi-sec.psk", password,
+        "connection.autoconnect", "yes",
+    ] if password else [
+        "nmcli", "connection", "add",
+        "type", "wifi",
+        "con-name", ssid,
+        "ssid", ssid,
+        "connection.autoconnect", "yes",
+    ]
+
+    rc, out, err = _run(cmd)
+    if rc == 0:
+        return {"success": True, "message": f"Saved {ssid} — will auto-connect when in range"}
+    else:
+        return {"success": False, "message": err or "Failed to save network"}
+
+
 def forget_network(ssid):
     """Remove a saved WiFi connection profile."""
     # Look up actual connection name (may differ from SSID on netplan systems)
