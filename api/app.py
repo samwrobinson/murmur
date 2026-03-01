@@ -4,7 +4,7 @@ from datetime import datetime
 import os
 import threading
 
-from config import FLASK_HOST, FLASK_PORT, AUDIO_DIR, TRANSCRIBE_LOCALLY
+from config import FLASK_HOST, FLASK_PORT, AUDIO_DIR, TRANSCRIBE_LOCALLY, get_persisted_setting, set_persisted_setting
 from transcribe import transcribe_entry
 from wifi import (
     get_wifi_status, scan_networks, get_saved_networks,
@@ -285,6 +285,30 @@ def api_wifi_forget():
     result = forget_network(ssid)
     status_code = 200 if result["success"] else 502
     return jsonify(result), status_code
+
+
+# --- Settings (persisted on Pi) ---
+
+@app.route("/api/settings/openai-key")
+def api_get_openai_key():
+    key = get_persisted_setting("openai_api_key") or ""
+    if len(key) > 8:
+        masked = key[:7] + "..." + key[-4:]
+    elif key:
+        masked = key[:3] + "..."
+    else:
+        masked = ""
+    return jsonify({"masked_key": masked})
+
+
+@app.route("/api/settings/openai-key", methods=["POST"])
+def api_set_openai_key():
+    data = request.get_json() or {}
+    key = data.get("key", "").strip()
+    if not key:
+        return jsonify({"error": "Key is required"}), 400
+    set_persisted_setting("openai_api_key", key)
+    return jsonify({"success": True})
 
 
 # --- Audio files ---

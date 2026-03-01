@@ -11,6 +11,7 @@ api/journal.db-wal
 api/audio/*.wav
 api/audio/*.mp3
 api/audio/*.webm
+api/settings.json
 
 # Capacitor iOS build artifacts
 ios/App/Pods

@@ -635,7 +635,7 @@ async function initEntryDetail() {
 // Settings page
 // ─────────────────────────────────────────────────────────────────────────────
 
-function initSettings() {
+async function initSettings() {
     const keyInput = document.getElementById("openai-key");
     if (!keyInput) return;
 
@@ -697,9 +697,19 @@ function initSettings() {
 
     // --- OpenAI Key ---
 
-    // Load existing key
+    // Load existing key from localStorage, or show server-persisted key as placeholder
     const existing = getOpenAIKey();
-    if (existing) keyInput.value = existing;
+    if (existing) {
+        keyInput.value = existing;
+    } else {
+        try {
+            const res = await fetch(`${API}/api/settings/openai-key`);
+            const data = await res.json();
+            if (data.masked_key) {
+                keyInput.placeholder = `${data.masked_key} (saved on Pi)`;
+            }
+        } catch (_) {}
+    }
 
     // Show/hide toggle
     toggleBtn.addEventListener("click", () => {
@@ -707,12 +717,21 @@ function initSettings() {
         keyInput.type = isPassword ? "text" : "password";
     });
 
-    // Save
-    saveBtn.addEventListener("click", () => {
+    // Save — persist to both localStorage and Pi
+    saveBtn.addEventListener("click", async () => {
         const key = keyInput.value.trim();
         if (key) {
             localStorage.setItem("murmur_openai_key", key);
-            if (statusEl) statusEl.textContent = "Key saved.";
+            try {
+                await fetch(`${API}/api/settings/openai-key`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ key }),
+                });
+                if (statusEl) statusEl.textContent = "Key saved (browser + Pi).";
+            } catch (_) {
+                if (statusEl) statusEl.textContent = "Key saved (browser only — couldn't reach Pi).";
+            }
         } else {
             localStorage.removeItem("murmur_openai_key");
             if (statusEl) statusEl.textContent = "Key removed.";

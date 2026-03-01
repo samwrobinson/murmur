@@ -35,12 +35,19 @@ scp -r public/ "$PI_HOST:$PI_DIR/"
 echo "  Frontend uploaded."
 
 # --- 3. Upload API, setup, and recorder ---
+# Use rsync for api/ to exclude data files that live only on the Pi
 echo ""
 echo "[3/3] Uploading API, setup, and recorder..."
-scp -r api/ "$PI_HOST:$PI_DIR/"
+rsync -av --exclude 'journal.db*' --exclude 'audio/' --exclude 'settings.json' --exclude '__pycache__/' api/ "$PI_HOST:$PI_DIR/api/"
 scp -r setup/ "$PI_HOST:$PI_DIR/"
 scp murmur_recorder.py "$PI_HOST:$PI_DIR/"
 echo "  Files uploaded."
+
+# --- 4. Restart services ---
+echo ""
+echo "[4/4] Restarting services on Pi..."
+ssh "$PI_HOST" "sudo systemctl restart murmur-api murmur-recorder"
+echo "  Services restarted."
 
 echo ""
 echo "=============================="

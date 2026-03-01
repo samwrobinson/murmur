@@ -8,7 +8,7 @@ import traceback
 
 import requests
 
-from config import WHISPER_MODEL, WHISPER_USE_CLOUD, OPENAI_API_KEY
+from config import WHISPER_MODEL, WHISPER_USE_CLOUD, OPENAI_API_KEY, get_persisted_setting
 from db import update_entry
 
 _model = None
@@ -49,7 +49,7 @@ def _downsample_audio(filepath):
 
 def transcribe_entry_cloud(entry_id, filepath, client_key=None):
     """Send audio to OpenAI Whisper API and write the result back to the database."""
-    api_key = client_key or OPENAI_API_KEY
+    api_key = client_key or get_persisted_setting("openai_api_key") or OPENAI_API_KEY
     if not api_key:
         print(f"[transcribe] Entry {entry_id} — no OpenAI API key available, skipping cloud transcription")
         update_entry(entry_id, transcription_status="failed")

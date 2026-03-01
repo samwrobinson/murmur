@@ -1,8 +1,10 @@
+import json
 import os
 
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 DB_PATH = os.path.join(BASE_DIR, "journal.db")
 AUDIO_DIR = os.path.join(BASE_DIR, "audio")
+SETTINGS_PATH = os.path.join(BASE_DIR, "settings.json")
 FLASK_PORT = 5001
 FLASK_HOST = "0.0.0.0"  # accessible from other devices on network
 
@@ -19,3 +21,26 @@ AUDIO_FORMAT = "wav"
 
 # Ensure audio directory exists
 os.makedirs(AUDIO_DIR, exist_ok=True)
+
+
+def get_persisted_setting(key):
+    """Read a single value from settings.json (returns None if missing)."""
+    try:
+        with open(SETTINGS_PATH, "r") as f:
+            return json.load(f).get(key)
+    except (FileNotFoundError, json.JSONDecodeError):
+        return None
+
+
+def set_persisted_setting(key, value):
+    """Write a single key/value into settings.json (merges with existing)."""
+    data = {}
+    try:
+        with open(SETTINGS_PATH, "r") as f:
+            data = json.load(f)
+    except (FileNotFoundError, json.JSONDecodeError):
+        pass
+    data[key] = value
+    with open(SETTINGS_PATH, "w") as f:
+        json.dump(data, f, indent=2)
+        f.write("\n")
