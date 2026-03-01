@@ -4,6 +4,14 @@ node_modules
 public
 __pycache__/
 
+# Pi data — never track user recordings or database
+api/journal.db
+api/journal.db-shm
+api/journal.db-wal
+api/audio/*.wav
+api/audio/*.mp3
+api/audio/*.webm
+
 # Capacitor iOS build artifacts
 ios/App/Pods
 ios/App/App/public
