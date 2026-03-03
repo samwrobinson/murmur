@@ -127,6 +127,7 @@ class MurmurRecorder:
         self._lock = threading.Lock()
         self._led_thread = None
         self._led_running = False
+        self._last_button_time = 0  # debounce tracking
 
         # Pre-generate LCD screens
         w, h = self.board.LCD_WIDTH, self.board.LCD_HEIGHT
@@ -175,45 +176,14 @@ class MurmurRecorder:
             ["amixer", "-c", card, "sset", "Right Output Mixer PCM", "on"],
             ["amixer", "-c", card, "sset", "Speaker", "121"],
             ["amixer", "-c", card, "sset", "Playback", "230"],
-            # Recording input (moderate gain to reduce power supply noise)
+            # Recording input
             ["amixer", "-c", card, "sset", "Left Input Mixer Boost", "on"],
             ["amixer", "-c", card, "sset", "Right Input Mixer Boost", "on"],
-            ["amixer", "-c", card, "sset", "Capture", "50"],
-            ["amixer", "-c", card, "sset", "ADC PCM", "150"],
-            # Microphone gain (keep low to minimize electrical noise)
-            ["amixer", "-c", card, "sset", "Left Input Boost Mixer LINPUT1", "1"],
-            ["amixer", "-c", card, "sset", "Right Input Boost Mixer RINPUT1", "1"],
-        ]
-        for cmd in cmds:
-            try:
-                subprocess.run(cmd, capture_output=True, timeout=5)
-            except Exception:
-                pass
-
-    def _mute_speaker(self):
-        """Fully disconnect speaker output path to prevent electrical crosstalk during recording."""
-        card = str(self.card_index)
-        cmds = [
-            # Disconnect the output mixers entirely (not just volume down)
-            ["amixer", "-c", card, "sset", "Left Output Mixer PCM", "off"],
-            ["amixer", "-c", card, "sset", "Right Output Mixer PCM", "off"],
-            ["amixer", "-c", card, "sset", "Speaker", "0"],
-            ["amixer", "-c", card, "sset", "Playback", "0"],
-        ]
-        for cmd in cmds:
-            try:
-                subprocess.run(cmd, capture_output=True, timeout=5)
-            except Exception:
-                pass
-
-    def _unmute_speaker(self):
-        """Restore speaker output path after recording."""
-        card = str(self.card_index)
-        cmds = [
-            ["amixer", "-c", card, "sset", "Left Output Mixer PCM", "on"],
-            ["amixer", "-c", card, "sset", "Right Output Mixer PCM", "on"],
-            ["amixer", "-c", card, "sset", "Speaker", "121"],
-            ["amixer", "-c", card, "sset", "Playback", "230"],
+            ["amixer", "-c", card, "sset", "Capture", "45"],
+            ["amixer", "-c", card, "sset", "ADC PCM", "195"],
+            # Microphone gain
+            ["amixer", "-c", card, "sset", "Left Input Boost Mixer LINPUT1", "2"],
+            ["amixer", "-c", card, "sset", "Right Input Boost Mixer RINPUT1", "2"],
         ]
         for cmd in cmds:
             try:
@@ -225,6 +195,15 @@ class MurmurRecorder:
 
     def _on_button_press(self):
         """Button pressed — toggle between idle and recording."""
+        now = time.time()
+        # Debounce: ignore presses within 1s of the last one.
+        # The WhisPlay driver can fire spurious events from SPI/I2C
+        # crosstalk when the screen or other components are touched.
+        if now - self._last_button_time < 1.0:
+            print(f"[recorder] debounce: ignoring spurious press ({now - self._last_button_time:.2f}s)")
+            return
+        self._last_button_time = now
+
         with self._lock:
             if self.state == State.IDLE:
                 self._start_recording()
@@ -237,7 +216,6 @@ class MurmurRecorder:
         self.state = State.RECORDING
         print("[recorder] recording...")
 
-        self._mute_speaker()
         self._show_screen(self._screen_recording)
         self._start_led_blink(255, 0, 0)
 
@@ -262,7 +240,6 @@ class MurmurRecorder:
     def _stop_recording(self):
         """Stop recording and kick off upload in background thread."""
         print("[recorder] stopping recording...")
-        self._unmute_speaker()
 
         duration = time.time() - self._rec_start_time if self._rec_start_time else 0
         filepath = self._rec_file
@@ -283,8 +260,8 @@ class MurmurRecorder:
         self.state = State.UPLOADING
         print(f"[recorder] recorded {duration:.1f}s")
 
-        # Clean up audio — filter out power supply squeal
-        filepath = self._filter_audio(filepath)
+        # Remove background noise (profiles first 0.5s then subtracts)
+        filepath = self._reduce_noise(filepath)
 
         # Upload in background so button callback returns quickly
         threading.Thread(
@@ -295,35 +272,36 @@ class MurmurRecorder:
 
     # ==================== Audio cleanup ====================
 
-    def _filter_audio(self, filepath):
-        """Filter out high-frequency electrical noise (power supply squeal).
+    def _reduce_noise(self, filepath):
+        """Remove background noise using sox noisered.
 
-        Uses sox to apply:
-          - highpass at 200Hz (removes low rumble/hum)
-          - lowpass at 7000Hz (kills high-frequency squeal)
-          - downmix stereo to mono (reduces noise from unused channel)
+        1. Extract a noise profile from the first 0.5s (before speech starts)
+        2. Subtract that profile from the full recording
+        This adapts to whatever noise is present — power supply hum, squeal, etc.
         Returns cleaned file path, or original on failure.
         """
+        noise_profile = filepath + ".prof"
         cleaned = filepath.replace(".wav", "_clean.wav")
         try:
+            # Step 1: build noise profile from first 0.5s
             subprocess.run(
-                ["sox", filepath, cleaned,
-                 "remix", "1",              # mono — use left mic only
-                 "highpass", "200",          # cut low-freq hum
-                 "lowpass", "7000",          # cut high-freq squeal
-                 "compand", "0.3,1", "6:-70,-60,-20", "-5", "-90", "0.2",  # gentle noise gate
-                 ],
+                ["sox", filepath, "-n", "trim", "0", "0.5", "noiseprof", noise_profile],
+                check=True, capture_output=True, timeout=15,
+            )
+            # Step 2: apply noise reduction (0.21 = moderate strength)
+            subprocess.run(
+                ["sox", filepath, cleaned, "noisered", noise_profile, "0.21"],
                 check=True, capture_output=True, timeout=30,
             )
-            orig_size = os.path.getsize(filepath)
-            clean_size = os.path.getsize(cleaned)
-            print(f"[recorder] Audio filtered: {orig_size//1024}KB -> {clean_size//1024}KB")
+            print(f"[recorder] Noise reduction applied")
             os.remove(filepath)
+            os.remove(noise_profile)
             return cleaned
         except Exception as e:
-            print(f"[recorder] Audio filter failed, using original: {e}")
-            if os.path.exists(cleaned):
-                os.remove(cleaned)
+            print(f"[recorder] Noise reduction failed, using original: {e}")
+            for f in [noise_profile, cleaned]:
+                if os.path.exists(f):
+                    os.remove(f)
             return filepath
 
     # ==================== Upload ====================
