@@ -175,14 +175,14 @@ class MurmurRecorder:
             ["amixer", "-c", card, "sset", "Right Output Mixer PCM", "on"],
             ["amixer", "-c", card, "sset", "Speaker", "121"],
             ["amixer", "-c", card, "sset", "Playback", "230"],
-            # Recording input
+            # Recording input (moderate gain to reduce power supply noise)
             ["amixer", "-c", card, "sset", "Left Input Mixer Boost", "on"],
             ["amixer", "-c", card, "sset", "Right Input Mixer Boost", "on"],
-            ["amixer", "-c", card, "sset", "Capture", "45"],
-            ["amixer", "-c", card, "sset", "ADC PCM", "195"],
-            # Microphone gain
-            ["amixer", "-c", card, "sset", "Left Input Boost Mixer LINPUT1", "2"],
-            ["amixer", "-c", card, "sset", "Right Input Boost Mixer RINPUT1", "2"],
+            ["amixer", "-c", card, "sset", "Capture", "50"],
+            ["amixer", "-c", card, "sset", "ADC PCM", "150"],
+            # Microphone gain (keep low to minimize electrical noise)
+            ["amixer", "-c", card, "sset", "Left Input Boost Mixer LINPUT1", "1"],
+            ["amixer", "-c", card, "sset", "Right Input Boost Mixer RINPUT1", "1"],
         ]
         for cmd in cmds:
             try:
@@ -239,7 +239,6 @@ class MurmurRecorder:
 
         self._mute_speaker()
         self._show_screen(self._screen_recording)
-        self.board.set_backlight(0)  # Turn off LCD backlight — PWM can cause squeal
         self._start_led_blink(255, 0, 0)
 
         # Start arecord in background thread
@@ -264,7 +263,6 @@ class MurmurRecorder:
         """Stop recording and kick off upload in background thread."""
         print("[recorder] stopping recording...")
         self._unmute_speaker()
-        self.board.set_backlight(60)  # Restore LCD backlight
 
         duration = time.time() - self._rec_start_time if self._rec_start_time else 0
         filepath = self._rec_file
@@ -285,12 +283,48 @@ class MurmurRecorder:
         self.state = State.UPLOADING
         print(f"[recorder] recorded {duration:.1f}s")
 
+        # Clean up audio — filter out power supply squeal
+        filepath = self._filter_audio(filepath)
+
         # Upload in background so button callback returns quickly
         threading.Thread(
             target=self._upload_and_idle,
             args=(filepath, round(duration, 1)),
             daemon=True,
         ).start()
+
+    # ==================== Audio cleanup ====================
+
+    def _filter_audio(self, filepath):
+        """Filter out high-frequency electrical noise (power supply squeal).
+
+        Uses sox to apply:
+          - highpass at 200Hz (removes low rumble/hum)
+          - lowpass at 7000Hz (kills high-frequency squeal)
+          - downmix stereo to mono (reduces noise from unused channel)
+        Returns cleaned file path, or original on failure.
+        """
+        cleaned = filepath.replace(".wav", "_clean.wav")
+        try:
+            subprocess.run(
+                ["sox", filepath, cleaned,
+                 "remix", "1",              # mono — use left mic only
+                 "highpass", "200",          # cut low-freq hum
+                 "lowpass", "7000",          # cut high-freq squeal
+                 "compand", "0.3,1", "6:-70,-60,-20", "-5", "-90", "0.2",  # gentle noise gate
+                 ],
+                check=True, capture_output=True, timeout=30,
+            )
+            orig_size = os.path.getsize(filepath)
+            clean_size = os.path.getsize(cleaned)
+            print(f"[recorder] Audio filtered: {orig_size//1024}KB -> {clean_size//1024}KB")
+            os.remove(filepath)
+            return cleaned
+        except Exception as e:
+            print(f"[recorder] Audio filter failed, using original: {e}")
+            if os.path.exists(cleaned):
+                os.remove(cleaned)
+            return filepath
 
     # ==================== Upload ====================
 
