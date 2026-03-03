@@ -127,23 +127,15 @@ class MurmurRecorder:
         self._lock = threading.Lock()
         self._led_thread = None
         self._led_running = False
-        self._last_button_time = 0
-        self._awaiting_confirm = False  # waiting for second press
 
         # Pre-generate LCD screens
         w, h = self.board.LCD_WIDTH, self.board.LCD_HEIGHT
         self._screen_idle = make_screen(
             "Murmur", "Press to record",
             bg_color=(0, 0, 40), text_color=(100, 180, 255), width=w, height=h)
-        self._screen_confirm_start = make_screen(
-            "Tap again", "to start recording",
-            bg_color=(0, 30, 40), text_color=(100, 255, 180), width=w, height=h)
         self._screen_recording = make_screen(
             "Recording...", "Press to stop",
             bg_color=(60, 0, 0), text_color=(255, 80, 80), width=w, height=h)
-        self._screen_confirm_stop = make_screen(
-            "Tap again", "to save",
-            bg_color=(40, 20, 0), text_color=(255, 200, 100), width=w, height=h)
         self._screen_saving = make_screen(
             "Saving...", "",
             bg_color=(40, 30, 0), text_color=(255, 200, 50), width=w, height=h)
@@ -201,58 +193,12 @@ class MurmurRecorder:
     # ==================== Button ====================
 
     def _on_button_press(self):
-        """Button pressed — tap once to prompt, tap again to confirm."""
-        now = time.time()
-        elapsed = now - self._last_button_time
-        self._last_button_time = now
-
-        # Ignore obvious electrical noise (< 150ms between events)
-        if elapsed < 0.15:
-            return
-
-        print(f"[recorder] button press (state={self.state}, awaiting={self._awaiting_confirm}, elapsed={elapsed:.2f}s)")
-
-        with self._lock:
-            if self._awaiting_confirm:
-                # Second press = confirm the action
-                self._awaiting_confirm = False
-                if self.state == State.IDLE:
-                    print("[recorder] confirmed → start recording")
-                    self._start_recording()
-                elif self.state == State.RECORDING:
-                    print("[recorder] confirmed → stop recording")
-                    self._stop_recording()
-                return
-
-            if self.state == State.IDLE:
-                # First press while idle → show confirmation prompt
-                self._awaiting_confirm = True
-                self._show_screen(self._screen_confirm_start)
-                self.board.set_rgb(0, 255, 100)
-                print("[recorder] tap again within 3s to start")
-                threading.Timer(3.0, self._cancel_confirm).start()
-
-            elif self.state == State.RECORDING:
-                # First press while recording → show confirmation prompt
-                self._awaiting_confirm = True
-                self._show_screen(self._screen_confirm_stop)
-                self.board.set_rgb(255, 200, 0)
-                print("[recorder] tap again within 3s to stop")
-                threading.Timer(3.0, self._cancel_confirm).start()
-
-    def _cancel_confirm(self):
-        """Cancel the confirmation prompt after timeout."""
-        if not self._awaiting_confirm:
-            return
-        self._awaiting_confirm = False
-        print("[recorder] confirmation timed out")
+        """Button pressed — toggle between idle and recording."""
         with self._lock:
             if self.state == State.IDLE:
-                self._show_screen(self._screen_idle)
-                self._start_led_breath(0, 0, 255)
+                self._start_recording()
             elif self.state == State.RECORDING:
-                self._show_screen(self._screen_recording)
-                self._start_led_blink(255, 0, 0)
+                self._stop_recording()
 
     # ==================== Recording ====================
 
@@ -304,49 +250,12 @@ class MurmurRecorder:
         self.state = State.UPLOADING
         print(f"[recorder] recorded {duration:.1f}s")
 
-        # Remove background noise (profiles first 0.5s then subtracts)
-        filepath = self._reduce_noise(filepath)
-
         # Upload in background so button callback returns quickly
         threading.Thread(
             target=self._upload_and_idle,
             args=(filepath, round(duration, 1)),
             daemon=True,
         ).start()
-
-    # ==================== Audio cleanup ====================
-
-    def _reduce_noise(self, filepath):
-        """Remove background noise using sox noisered.
-
-        1. Extract a noise profile from the first 0.5s (before speech starts)
-        2. Subtract that profile from the full recording
-        This adapts to whatever noise is present — power supply hum, squeal, etc.
-        Returns cleaned file path, or original on failure.
-        """
-        noise_profile = filepath + ".prof"
-        cleaned = filepath.replace(".wav", "_clean.wav")
-        try:
-            # Step 1: build noise profile from first 0.5s
-            subprocess.run(
-                ["sox", filepath, "-n", "trim", "0", "0.5", "noiseprof", noise_profile],
-                check=True, capture_output=True, timeout=15,
-            )
-            # Step 2: apply noise reduction (0.21 = moderate strength)
-            subprocess.run(
-                ["sox", filepath, cleaned, "noisered", noise_profile, "0.21"],
-                check=True, capture_output=True, timeout=30,
-            )
-            print(f"[recorder] Noise reduction applied")
-            os.remove(filepath)
-            os.remove(noise_profile)
-            return cleaned
-        except Exception as e:
-            print(f"[recorder] Noise reduction failed, using original: {e}")
-            for f in [noise_profile, cleaned]:
-                if os.path.exists(f):
-                    os.remove(f)
-            return filepath
 
     # ==================== Upload ====================
 
