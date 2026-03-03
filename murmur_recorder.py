@@ -191,26 +191,33 @@ class MurmurRecorder:
                 pass
 
     def _mute_speaker(self):
-        """Mute speaker output to prevent feedback during recording."""
+        """Fully disconnect speaker output path to prevent electrical crosstalk during recording."""
         card = str(self.card_index)
-        for ctrl in ["Speaker", "Playback"]:
+        cmds = [
+            # Disconnect the output mixers entirely (not just volume down)
+            ["amixer", "-c", card, "sset", "Left Output Mixer PCM", "off"],
+            ["amixer", "-c", card, "sset", "Right Output Mixer PCM", "off"],
+            ["amixer", "-c", card, "sset", "Speaker", "0"],
+            ["amixer", "-c", card, "sset", "Playback", "0"],
+        ]
+        for cmd in cmds:
             try:
-                subprocess.run(
-                    ["amixer", "-c", card, "sset", ctrl, "0"],
-                    capture_output=True, timeout=5,
-                )
+                subprocess.run(cmd, capture_output=True, timeout=5)
             except Exception:
                 pass
 
     def _unmute_speaker(self):
-        """Restore speaker output after recording."""
+        """Restore speaker output path after recording."""
         card = str(self.card_index)
-        for ctrl, val in [("Speaker", "121"), ("Playback", "230")]:
+        cmds = [
+            ["amixer", "-c", card, "sset", "Left Output Mixer PCM", "on"],
+            ["amixer", "-c", card, "sset", "Right Output Mixer PCM", "on"],
+            ["amixer", "-c", card, "sset", "Speaker", "121"],
+            ["amixer", "-c", card, "sset", "Playback", "230"],
+        ]
+        for cmd in cmds:
             try:
-                subprocess.run(
-                    ["amixer", "-c", card, "sset", ctrl, val],
-                    capture_output=True, timeout=5,
-                )
+                subprocess.run(cmd, capture_output=True, timeout=5)
             except Exception:
                 pass
 
@@ -232,6 +239,7 @@ class MurmurRecorder:
 
         self._mute_speaker()
         self._show_screen(self._screen_recording)
+        self.board.set_backlight(0)  # Turn off LCD backlight — PWM can cause squeal
         self._start_led_blink(255, 0, 0)
 
         # Start arecord in background thread
@@ -256,6 +264,7 @@ class MurmurRecorder:
         """Stop recording and kick off upload in background thread."""
         print("[recorder] stopping recording...")
         self._unmute_speaker()
+        self.board.set_backlight(60)  # Restore LCD backlight
 
         duration = time.time() - self._rec_start_time if self._rec_start_time else 0
         filepath = self._rec_file
