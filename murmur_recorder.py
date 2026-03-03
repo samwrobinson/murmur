@@ -127,16 +127,23 @@ class MurmurRecorder:
         self._lock = threading.Lock()
         self._led_thread = None
         self._led_running = False
-        self._last_button_time = 0  # debounce tracking
+        self._last_button_time = 0
+        self._awaiting_confirm = False  # waiting for second press
 
         # Pre-generate LCD screens
         w, h = self.board.LCD_WIDTH, self.board.LCD_HEIGHT
         self._screen_idle = make_screen(
-            "Murmur", "Double tap to record",
+            "Murmur", "Press to record",
             bg_color=(0, 0, 40), text_color=(100, 180, 255), width=w, height=h)
+        self._screen_confirm_start = make_screen(
+            "Tap again", "to start recording",
+            bg_color=(0, 30, 40), text_color=(100, 255, 180), width=w, height=h)
         self._screen_recording = make_screen(
-            "Recording...", "Double tap to stop",
+            "Recording...", "Press to stop",
             bg_color=(60, 0, 0), text_color=(255, 80, 80), width=w, height=h)
+        self._screen_confirm_stop = make_screen(
+            "Tap again", "to save",
+            bg_color=(40, 20, 0), text_color=(255, 200, 100), width=w, height=h)
         self._screen_saving = make_screen(
             "Saving...", "",
             bg_color=(40, 30, 0), text_color=(255, 200, 50), width=w, height=h)
@@ -194,31 +201,58 @@ class MurmurRecorder:
     # ==================== Button ====================
 
     def _on_button_press(self):
-        """Button pressed — double tap to start/stop recording."""
+        """Button pressed — tap once to prompt, tap again to confirm."""
         now = time.time()
         elapsed = now - self._last_button_time
         self._last_button_time = now
 
-        # Ignore obvious electrical noise (< 100ms between events)
-        if elapsed < 0.1:
+        # Ignore obvious electrical noise (< 150ms between events)
+        if elapsed < 0.15:
             return
 
-        # Double tap = two presses within 0.6s
-        is_double_tap = elapsed < 0.6
+        print(f"[recorder] button press (state={self.state}, awaiting={self._awaiting_confirm}, elapsed={elapsed:.2f}s)")
 
         with self._lock:
-            if self.state == State.IDLE:
-                if is_double_tap:
-                    print("[recorder] double tap → start recording")
+            if self._awaiting_confirm:
+                # Second press = confirm the action
+                self._awaiting_confirm = False
+                if self.state == State.IDLE:
+                    print("[recorder] confirmed → start recording")
                     self._start_recording()
-                else:
-                    print("[recorder] single tap (double tap to record)")
-            elif self.state == State.RECORDING:
-                if is_double_tap:
-                    print("[recorder] double tap → stop recording")
+                elif self.state == State.RECORDING:
+                    print("[recorder] confirmed → stop recording")
                     self._stop_recording()
-                else:
-                    print("[recorder] single tap (double tap to stop)")
+                return
+
+            if self.state == State.IDLE:
+                # First press while idle → show confirmation prompt
+                self._awaiting_confirm = True
+                self._show_screen(self._screen_confirm_start)
+                self.board.set_rgb(0, 255, 100)
+                print("[recorder] tap again within 3s to start")
+                threading.Timer(3.0, self._cancel_confirm).start()
+
+            elif self.state == State.RECORDING:
+                # First press while recording → show confirmation prompt
+                self._awaiting_confirm = True
+                self._show_screen(self._screen_confirm_stop)
+                self.board.set_rgb(255, 200, 0)
+                print("[recorder] tap again within 3s to stop")
+                threading.Timer(3.0, self._cancel_confirm).start()
+
+    def _cancel_confirm(self):
+        """Cancel the confirmation prompt after timeout."""
+        if not self._awaiting_confirm:
+            return
+        self._awaiting_confirm = False
+        print("[recorder] confirmation timed out")
+        with self._lock:
+            if self.state == State.IDLE:
+                self._show_screen(self._screen_idle)
+                self._start_led_breath(0, 0, 255)
+            elif self.state == State.RECORDING:
+                self._show_screen(self._screen_recording)
+                self._start_led_blink(255, 0, 0)
 
     # ==================== Recording ====================
 
