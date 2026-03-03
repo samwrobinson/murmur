@@ -74,6 +74,9 @@ def transcribe_entry_cloud(entry_id, filepath, client_key=None):
         text = resp.json().get("text", "").strip()
         update_entry(entry_id, transcription=text, transcription_status="done")
         print(f"[transcribe] Entry {entry_id} done via cloud ({len(text)} chars)")
+    except (requests.ConnectionError, requests.Timeout, OSError) as e:
+        # Network unavailable — leave as 'pending' so it gets retried
+        print(f"[transcribe] Entry {entry_id} network error (will retry): {e}")
     except Exception:
         traceback.print_exc()
         update_entry(entry_id, transcription_status="failed")

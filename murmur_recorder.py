@@ -190,6 +190,30 @@ class MurmurRecorder:
             except Exception:
                 pass
 
+    def _mute_speaker(self):
+        """Mute speaker output to prevent feedback during recording."""
+        card = str(self.card_index)
+        for ctrl in ["Speaker", "Playback"]:
+            try:
+                subprocess.run(
+                    ["amixer", "-c", card, "sset", ctrl, "0"],
+                    capture_output=True, timeout=5,
+                )
+            except Exception:
+                pass
+
+    def _unmute_speaker(self):
+        """Restore speaker output after recording."""
+        card = str(self.card_index)
+        for ctrl, val in [("Speaker", "121"), ("Playback", "230")]:
+            try:
+                subprocess.run(
+                    ["amixer", "-c", card, "sset", ctrl, val],
+                    capture_output=True, timeout=5,
+                )
+            except Exception:
+                pass
+
     # ==================== Button ====================
 
     def _on_button_press(self):
@@ -206,6 +230,7 @@ class MurmurRecorder:
         self.state = State.RECORDING
         print("[recorder] recording...")
 
+        self._mute_speaker()
         self._show_screen(self._screen_recording)
         self._start_led_blink(255, 0, 0)
 
@@ -230,6 +255,7 @@ class MurmurRecorder:
     def _stop_recording(self):
         """Stop recording and kick off upload in background thread."""
         print("[recorder] stopping recording...")
+        self._unmute_speaker()
 
         duration = time.time() - self._rec_start_time if self._rec_start_time else 0
         filepath = self._rec_file

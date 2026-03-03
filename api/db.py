@@ -321,12 +321,13 @@ def get_stats():
 
 
 def get_untranscribed_entries():
-    """Get entries waiting for remote transcription."""
+    """Get entries waiting for remote transcription (includes failed for retry)."""
     conn = get_db()
     entries = conn.execute(
         """SELECT id, audio_filename, duration_seconds, created_at
            FROM entries
-           WHERE transcription_status = 'pending' AND audio_filename IS NOT NULL
+           WHERE transcription_status IN ('pending', 'failed')
+             AND audio_filename IS NOT NULL
            ORDER BY created_at ASC"""
     ).fetchall()
     conn.close()
