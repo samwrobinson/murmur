@@ -132,10 +132,10 @@ class MurmurRecorder:
         # Pre-generate LCD screens
         w, h = self.board.LCD_WIDTH, self.board.LCD_HEIGHT
         self._screen_idle = make_screen(
-            "Murmur", "Press to record",
+            "Murmur", "Double tap to record",
             bg_color=(0, 0, 40), text_color=(100, 180, 255), width=w, height=h)
         self._screen_recording = make_screen(
-            "Recording...", "Press to stop",
+            "Recording...", "Double tap to stop",
             bg_color=(60, 0, 0), text_color=(255, 80, 80), width=w, height=h)
         self._screen_saving = make_screen(
             "Saving...", "",
@@ -194,21 +194,31 @@ class MurmurRecorder:
     # ==================== Button ====================
 
     def _on_button_press(self):
-        """Button pressed — toggle between idle and recording."""
+        """Button pressed — double tap to start/stop recording."""
         now = time.time()
-        # Debounce: ignore presses within 1s of the last one.
-        # The WhisPlay driver can fire spurious events from SPI/I2C
-        # crosstalk when the screen or other components are touched.
-        if now - self._last_button_time < 1.0:
-            print(f"[recorder] debounce: ignoring spurious press ({now - self._last_button_time:.2f}s)")
-            return
+        elapsed = now - self._last_button_time
         self._last_button_time = now
+
+        # Ignore obvious electrical noise (< 100ms between events)
+        if elapsed < 0.1:
+            return
+
+        # Double tap = two presses within 0.6s
+        is_double_tap = elapsed < 0.6
 
         with self._lock:
             if self.state == State.IDLE:
-                self._start_recording()
+                if is_double_tap:
+                    print("[recorder] double tap → start recording")
+                    self._start_recording()
+                else:
+                    print("[recorder] single tap (double tap to record)")
             elif self.state == State.RECORDING:
-                self._stop_recording()
+                if is_double_tap:
+                    print("[recorder] double tap → stop recording")
+                    self._stop_recording()
+                else:
+                    print("[recorder] single tap (double tap to stop)")
 
     # ==================== Recording ====================
 
