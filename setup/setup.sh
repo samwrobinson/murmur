@@ -73,9 +73,24 @@ chown -R murmur:murmur "$MURMUR_HOME"
 # Allow nginx (www-data) to traverse into public/
 chmod o+x /home/murmur /home/murmur/murmur /home/murmur/murmur/public
 
-# --- 4. nginx ---
+# --- 4. nginx + HTTPS ---
 echo ""
-echo "[4/7] Configuring nginx..."
+echo "[4/7] Configuring nginx with HTTPS..."
+
+# Generate self-signed cert for murmur.local (valid 10 years)
+if [ ! -f /etc/ssl/murmur/murmur.crt ]; then
+    echo "  Generating self-signed TLS certificate..."
+    mkdir -p /etc/ssl/murmur
+    openssl req -x509 -nodes -days 3650 \
+        -newkey rsa:2048 \
+        -keyout /etc/ssl/murmur/murmur.key \
+        -out /etc/ssl/murmur/murmur.crt \
+        -subj "/CN=murmur.local" \
+        -addext "subjectAltName=DNS:murmur.local,DNS:localhost,IP:127.0.0.1"
+    chmod 600 /etc/ssl/murmur/murmur.key
+    echo "  Certificate created at /etc/ssl/murmur/murmur.crt"
+fi
+
 cp "$MURMUR_HOME/setup/nginx-murmur.conf" /etc/nginx/sites-available/murmur
 ln -sf /etc/nginx/sites-available/murmur /etc/nginx/sites-enabled/murmur
 rm -f /etc/nginx/sites-enabled/default
@@ -140,8 +155,11 @@ echo ""
 echo "=============================="
 echo "  Setup complete!"
 echo ""
-echo "  Web app:        http://murmur.local"
-echo "  API:            http://murmur.local:5001"
+echo "  Web app:        https://murmur.local"
+echo "  API:            https://murmur.local/api/"
+echo ""
+echo "  NOTE: You'll need to trust the self-signed certificate"
+echo "  the first time you visit https://murmur.local in your browser."
 echo "  Samba share:    smb://murmur.local/Murmur"
 echo ""
 echo "  IMPORTANT: If this is a fresh install, you need to"

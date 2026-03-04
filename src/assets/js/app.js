@@ -238,7 +238,19 @@ function updateTimer() {
 }
 
 async function startRecording() {
-    const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) {
+        const label = document.getElementById("record-label");
+        if (label) label.textContent = "Mic requires HTTPS — use the app or enable HTTPS";
+        return;
+    }
+    let stream;
+    try {
+        stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+    } catch (err) {
+        const label = document.getElementById("record-label");
+        if (label) label.textContent = `Mic error: ${err.message}`;
+        return;
+    }
     // Pick a format the browser supports — prefer mp4 (Safari) then webm (Chrome/Firefox)
     const mimeType = MediaRecorder.isTypeSupported("audio/mp4") ? "audio/mp4"
         : MediaRecorder.isTypeSupported("audio/webm") ? "audio/webm"
