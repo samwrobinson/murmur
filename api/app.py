@@ -135,6 +135,30 @@ def api_update_entry(entry_id):
     return jsonify(entry_to_dict(entry, tags))
 
 
+@app.route("/api/entries/<int:entry_id>/retry-transcription", methods=["POST"])
+def api_retry_transcription(entry_id):
+    entry, tags = get_entry(entry_id)
+    if not entry:
+        return jsonify({"error": "Entry not found"}), 404
+    if not entry["audio_filename"]:
+        return jsonify({"error": "No audio file for this entry"}), 400
+
+    # Reset status to pending and kick off transcription
+    update_entry(entry_id, transcription_status="pending")
+    audio_path = os.path.join(AUDIO_DIR, entry["audio_filename"])
+    data = request.get_json() or {}
+    client_key = data.get("openai_key") or request.headers.get("X-OpenAI-Key")
+    threading.Thread(
+        target=transcribe_entry,
+        args=(entry_id, audio_path),
+        kwargs={"client_key": client_key},
+        daemon=True,
+    ).start()
+
+    entry, tags = get_entry(entry_id)
+    return jsonify(entry_to_dict(entry, tags))
+
+
 @app.route("/api/entries/<int:entry_id>", methods=["DELETE"])
 def api_delete_entry(entry_id):
     delete_entry(entry_id)

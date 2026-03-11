@@ -259,6 +259,23 @@ class MurmurRecorder:
 
     # ==================== Upload ====================
 
+    def _filter_audio(self, filepath):
+        """Apply high-pass and low-pass filters to remove battery static noise."""
+        filtered = filepath + ".filtered.wav"
+        try:
+            subprocess.run(
+                ["sox", filepath, filtered,
+                 "highpass", "80", "lowpass", "4000",
+                 "rate", "16000", "channels", "1"],
+                check=True, capture_output=True, timeout=60,
+            )
+            os.replace(filtered, filepath)
+            print("[recorder] audio filtered (80Hz-4kHz, 16kHz mono)")
+        except Exception as e:
+            print(f"[recorder] audio filter failed, using original: {e}")
+            if os.path.exists(filtered):
+                os.remove(filtered)
+
     def _upload_and_idle(self, filepath, duration):
         """Upload the recording then return to idle state."""
         # Discard very short recordings
@@ -271,6 +288,9 @@ class MurmurRecorder:
             self._cleanup_file(filepath)
             self._go_idle()
             return
+
+        # Filter audio to remove high-pitched battery static
+        self._filter_audio(filepath)
 
         # Show saving state
         self._stop_led_blink()

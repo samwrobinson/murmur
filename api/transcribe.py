@@ -29,12 +29,13 @@ def _get_model():
 
 
 def _downsample_audio(filepath):
-    """Downsample to 16kHz mono WAV for smaller upload. Returns temp path or None."""
+    """Downsample to 16kHz mono WAV with high-pass/low-pass filtering. Returns temp path or None."""
     tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
     tmp.close()
     try:
         subprocess.run(
-            ["sox", filepath, "-r", "16000", "-c", "1", tmp.name],
+            ["sox", filepath, "-r", "16000", "-c", "1", tmp.name,
+             "highpass", "80", "lowpass", "4000"],
             check=True, capture_output=True, timeout=60,
         )
         orig = os.path.getsize(filepath)

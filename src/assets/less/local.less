@@ -1108,6 +1108,39 @@
             white-space: pre-wrap;
         }
 
+        .cs-retry-btn {
+            font-family: var(--bodyFont);
+            font-size: (14/16rem);
+            font-weight: 600;
+            padding: (8/16rem) (16/16rem);
+            color: var(--primary);
+            background: none;
+            border: 1px solid var(--primary);
+            border-radius: (100/16rem);
+            display: inline-flex;
+            align-items: center;
+            gap: (6/16rem);
+            cursor: pointer;
+            transition: background-color 0.3s, color 0.3s;
+            align-self: flex-start;
+
+            svg {
+                width: (16/16rem);
+                height: (16/16rem);
+                flex-shrink: 0;
+            }
+
+            &:hover {
+                background-color: var(--primary);
+                color: #fff;
+            }
+
+            &:disabled {
+                opacity: 0.6;
+                cursor: not-allowed;
+            }
+        }
+
         .cs-tags-section {
             width: 100%;
             display: flex;

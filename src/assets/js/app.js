@@ -549,6 +549,7 @@ async function initEntryDetail() {
         // Transcription (with polling for pending status)
         const transcriptionSection = document.getElementById("entry-transcription-section");
         const transcriptionEl = document.getElementById("entry-transcription");
+        const retryBtn = document.getElementById("entry-retry-btn");
 
         function showTranscription(e) {
             if (e.transcription) {
@@ -561,10 +562,12 @@ async function initEntryDetail() {
                 transcriptionEl.textContent = "Transcription failed.";
                 transcriptionSection.style.display = "";
             }
+            // Show retry button on any entry that has audio
+            retryBtn.style.display = e.audio_filename ? "" : "none";
         }
         showTranscription(entry);
 
-        if (entry.transcription_status === "pending") {
+        function startTranscriptionPolling() {
             const pollInterval = setInterval(async () => {
                 try {
                     const pollRes = await fetch(`${API}/api/entries/${id}`);
@@ -577,6 +580,37 @@ async function initEntryDetail() {
                 } catch (_) {}
             }, 3000);
         }
+
+        if (entry.transcription_status === "pending") {
+            startTranscriptionPolling();
+        }
+
+        // Retry transcription button
+        const retryBtnOriginalHTML = retryBtn.innerHTML;
+        retryBtn.addEventListener("click", async () => {
+            retryBtn.disabled = true;
+            retryBtn.innerHTML = "Retrying...";
+            try {
+                const apiKey = getOpenAIKey();
+                const r = await fetch(`${API}/api/entries/${id}/retry-transcription`, {
+                    method: "POST",
+                    headers: { "Content-Type": "application/json" },
+                    body: JSON.stringify({ openai_key: apiKey || "" }),
+                });
+                if (r.ok) {
+                    const updated = await r.json();
+                    showTranscription(updated);
+                    startTranscriptionPolling();
+                } else {
+                    retryBtn.innerHTML = "Retry failed — tap to try again";
+                }
+            } catch (err) {
+                console.error("Retry transcription failed:", err);
+                retryBtn.innerHTML = "Retry failed — tap to try again";
+            }
+            retryBtn.innerHTML = retryBtnOriginalHTML;
+            retryBtn.disabled = false;
+        });
 
         // Notes
         if (entry.notes) {

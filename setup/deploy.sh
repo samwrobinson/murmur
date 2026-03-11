@@ -17,7 +17,7 @@ echo "=============================="
 
 # --- 1. Build frontend ---
 echo ""
-echo "[1/3] Building frontend..."
+echo "[1/4] Building frontend..."
 cd "$PROJECT_DIR"
 npm install
 npm run build
@@ -30,14 +30,14 @@ echo "  Build complete."
 
 # --- 2. Upload built files ---
 echo ""
-echo "[2/3] Uploading to Pi ($PI_HOST)..."
+echo "[2/4] Uploading to Pi ($PI_HOST)..."
 scp -r public/ "$PI_HOST:$PI_DIR/"
 echo "  Frontend uploaded."
 
 # --- 3. Upload API, setup, and recorder ---
 # Use rsync for api/ to exclude data files that live only on the Pi
 echo ""
-echo "[3/3] Uploading API, setup, and recorder..."
+echo "[3/4] Uploading API, setup, and recorder..."
 rsync -av --exclude 'journal.db*' --exclude 'audio/' --exclude 'settings.json' --exclude '__pycache__/' api/ "$PI_HOST:$PI_DIR/api/"
 scp -r setup/ "$PI_HOST:$PI_DIR/"
 scp murmur_recorder.py "$PI_HOST:$PI_DIR/"
@@ -46,7 +46,7 @@ echo "  Files uploaded."
 # --- 4. Restart services ---
 echo ""
 echo "[4/4] Restarting services on Pi..."
-ssh "$PI_HOST" "sudo systemctl restart murmur-api murmur-recorder"
+ssh "$PI_HOST" "sudo systemctl restart murmur-api murmur-recorder 2>/dev/null || true"
 echo "  Services restarted."
 
 echo ""
