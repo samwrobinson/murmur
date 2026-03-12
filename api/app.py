@@ -2,6 +2,7 @@ from flask import Flask, request, jsonify, send_from_directory
 from flask_cors import CORS
 from datetime import datetime
 import os
+import time
 import threading
 
 from config import FLASK_HOST, FLASK_PORT, AUDIO_DIR, TRANSCRIBE_LOCALLY, get_persisted_setting, set_persisted_setting
@@ -18,6 +19,29 @@ from db import (
 )
 
 app = Flask(__name__)
+
+
+# --- Background auto-retry for failed/pending transcriptions ---
+
+def _auto_retry_loop():
+    """Every 60s, retry any failed or pending transcriptions."""
+    time.sleep(15)  # wait for startup
+    while True:
+        try:
+            entries = get_untranscribed_entries()
+            for entry in entries:
+                audio_path = os.path.join(AUDIO_DIR, entry["audio_filename"])
+                if not os.path.exists(audio_path):
+                    continue
+                print(f"[auto-retry] Retrying transcription for entry {entry['id']}")
+                transcribe_entry(entry["id"], audio_path)
+        except Exception as e:
+            print(f"[auto-retry] Error: {e}")
+        time.sleep(60)
+
+
+_retry_thread = threading.Thread(target=_auto_retry_loop, daemon=True)
+_retry_thread.start()
 CORS(app)  # Allow 11ty dev server to call API
 
 

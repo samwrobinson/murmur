@@ -29,15 +29,17 @@ def _get_model():
 
 
 def _downsample_audio(filepath):
-    """Downsample to 16kHz mono WAV with high-pass/low-pass filtering. Returns temp path or None."""
+    """Downsample to 16kHz mono WAV with noise reduction and notch filtering. Returns temp path or None."""
     tmp = tempfile.NamedTemporaryFile(suffix=".wav", delete=False)
     tmp.close()
+    noise_prof = os.path.join(os.path.dirname(os.path.abspath(__file__)), "noise.prof")
     try:
-        subprocess.run(
-            ["sox", filepath, "-r", "16000", "-c", "1", tmp.name,
-             "highpass", "80", "lowpass", "4000"],
-            check=True, capture_output=True, timeout=60,
-        )
+        cmd = ["sox", filepath, "-r", "16000", "-c", "1", tmp.name]
+        if os.path.exists(noise_prof):
+            cmd += ["noisered", noise_prof, "0.05"]
+        cmd += ["bandreject", "550", "20q", "bandreject", "450", "20q",
+                "bandreject", "750", "20q", "bandreject", "7000", "50q"]
+        subprocess.run(cmd, check=True, capture_output=True, timeout=60)
         orig = os.path.getsize(filepath)
         small = os.path.getsize(tmp.name)
         print(f"[transcribe] Downsampled {orig // 1024}KB -> {small // 1024}KB")

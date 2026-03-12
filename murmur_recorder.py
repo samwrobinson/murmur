@@ -260,17 +260,18 @@ class MurmurRecorder:
     # ==================== Upload ====================
 
     def _filter_audio(self, filepath):
-        """Apply high-pass and low-pass filters to remove battery static noise."""
+        """Apply noise reduction and notch filters to remove battery static noise."""
         filtered = filepath + ".filtered.wav"
+        noise_prof = os.path.join(os.path.dirname(os.path.abspath(__file__)), "noise.prof")
         try:
-            subprocess.run(
-                ["sox", filepath, filtered,
-                 "highpass", "80", "lowpass", "4000",
-                 "rate", "16000", "channels", "1"],
-                check=True, capture_output=True, timeout=60,
-            )
+            cmd = ["sox", filepath, filtered, "rate", "16000", "channels", "1"]
+            if os.path.exists(noise_prof):
+                cmd += ["noisered", noise_prof, "0.05"]
+            cmd += ["bandreject", "550", "20q", "bandreject", "450", "20q",
+                     "bandreject", "750", "20q", "bandreject", "7000", "50q"]
+            subprocess.run(cmd, check=True, capture_output=True, timeout=60)
             os.replace(filtered, filepath)
-            print("[recorder] audio filtered (80Hz-4kHz, 16kHz mono)")
+            print("[recorder] audio filtered (noisered + notch, 16kHz mono)")
         except Exception as e:
             print(f"[recorder] audio filter failed, using original: {e}")
             if os.path.exists(filtered):

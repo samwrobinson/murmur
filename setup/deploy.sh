@@ -40,7 +40,7 @@ echo ""
 echo "[3/4] Uploading API, setup, and recorder..."
 rsync -av --exclude 'journal.db*' --exclude 'audio/' --exclude 'settings.json' --exclude '__pycache__/' api/ "$PI_HOST:$PI_DIR/api/"
 scp -r setup/ "$PI_HOST:$PI_DIR/"
-scp murmur_recorder.py "$PI_HOST:$PI_DIR/"
+scp murmur_recorder.py noise.prof "$PI_HOST:$PI_DIR/"
 echo "  Files uploaded."
 
 # --- 4. Restart services ---
