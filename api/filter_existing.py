@@ -19,7 +19,7 @@ NOISE_PROF = os.path.join(os.path.dirname(os.path.abspath(__file__)), "noise.pro
 def filter_file(filepath):
     """Apply noisered + notch filters to a single audio file."""
     tmp = filepath + ".filtered.wav"
-    cmd = ["sox", filepath, tmp, "-r", "16000", "-c", "1"]
+    cmd = ["sox", filepath, tmp, "rate", "16000", "channels", "1"]
     if os.path.exists(NOISE_PROF):
         cmd += ["noisered", NOISE_PROF, "0.05"]
     cmd += ["bandreject", "550", "20q", "bandreject", "450", "20q",

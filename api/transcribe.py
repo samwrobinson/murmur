@@ -34,7 +34,7 @@ def _downsample_audio(filepath):
     tmp.close()
     noise_prof = os.path.join(os.path.dirname(os.path.abspath(__file__)), "noise.prof")
     try:
-        cmd = ["sox", filepath, "-r", "16000", "-c", "1", tmp.name]
+        cmd = ["sox", filepath, tmp.name, "rate", "16000", "channels", "1"]
         if os.path.exists(noise_prof):
             cmd += ["noisered", noise_prof, "0.05"]
         cmd += ["bandreject", "550", "20q", "bandreject", "450", "20q",
