@@ -1,21 +1,26 @@
 #!/usr/bin/env python3
 """
-Murmur WhisPlay HAT Recorder
+Murmur INMP441 I2S Mic Recorder
 
-Press the WhisPlay button to record a voice journal entry directly on the Pi.
+Press the button (GPIO5) to record a voice journal entry directly on the Pi.
 The recording gets uploaded to the local Murmur Flask API, transcribed, and
 appears in the app/web UI.
 
 Interaction flow:
-  Idle        → LCD "Murmur" / "Press to record", LED blue breathing
-  Press       → Start recording, LCD "Recording...", LED red blink
-  Press again → Stop recording, LCD "Saving...", LED yellow
+  Idle        → LED off, waiting for button press
+  Press       → Start recording, LED on solid
+  Press again → Stop recording, LED blink while uploading
   Upload      → POST audio to API
-  Success     → LCD "Saved!", LED green, beep, return to idle
-  Error       → LCD error message, LED red solid, return to idle
+  Success     → LED off, return to idle
+  Error       → LED rapid blink, return to idle
+
+Hardware:
+  Mic:    INMP441 I2S on card 1 (plughw:1,0), S32_LE mono 48kHz
+  Button: GPIO5 (Pin 29) to GND (Pin 30), active low with internal pull-up
+  LED:    GPIO13 (Pin 33), active high (optional, fails gracefully)
 
 Dependencies:
-  sudo apt install python3-pil python3-requests alsa-utils
+  sudo apt install python3-requests python3-gpiozero python3-lgpio alsa-utils sox
 
 Usage:
   python3 murmur_recorder.py
@@ -34,20 +39,28 @@ import time
 
 import requests
 
-sys.path.append("/home/murmur/Whisplay/Driver")
-from WhisPlay import WhisPlayBoard  # noqa: E402
-
-from PIL import Image, ImageDraw, ImageFont  # noqa: E402
+try:
+    from gpiozero import Button as GPIOButton, LED as GPIOLED
+except ImportError:
+    print("[recorder] WARNING: gpiozero not available — button/LED disabled")
+    GPIOButton = None
+    GPIOLED = None
 
 # ---------------------------------------------------------------------------
 # Configuration
 # ---------------------------------------------------------------------------
 
 API_URL = os.environ.get("MURMUR_API_URL", "http://localhost:5001")
-SAMPLE_RATE = 48000   # WM8960 native rate (clean MCLK on Pi)
-CHANNELS = 2          # stereo — WM8960 dual mics
-FORMAT = "S16_LE"
+SAMPLE_RATE = 48000   # INMP441 native rate
+CHANNELS = 1          # mono — single INMP441 mic
+FORMAT = "S32_LE"     # INMP441 outputs 24-bit data in 32-bit frames
 MAX_RECORD_SEC = 300  # 5 minute max
+
+BUTTON_GPIO = 5       # GPIO5 (Pin 29)
+LED_GPIO = 13         # GPIO13 (Pin 33)
+
+# Software gain boost (dB) applied via sox to compensate for quiet INMP441
+GAIN_DB = 20
 
 
 # ---------------------------------------------------------------------------
@@ -61,64 +74,12 @@ class State:
 
 
 # ---------------------------------------------------------------------------
-# LCD screen generation (RGB565 via PIL — same as record_play_demo.py)
-# ---------------------------------------------------------------------------
-
-def make_screen(text, sub_text="", bg_color=(0, 0, 0), text_color=(255, 255, 255),
-                width=240, height=280):
-    """Generate RGB565 pixel data with centered text for the LCD."""
-    img = Image.new("RGB", (width, height), bg_color)
-    draw = ImageDraw.Draw(img)
-
-    font_large = None
-    font_small = None
-    for fpath in ["/usr/share/fonts/truetype/dejavu/DejaVuSans-Bold.ttf",
-                  "/usr/share/fonts/truetype/freefont/FreeSansBold.ttf"]:
-        if os.path.exists(fpath):
-            try:
-                font_large = ImageFont.truetype(fpath, 28)
-                font_small = ImageFont.truetype(fpath, 18)
-            except Exception:
-                pass
-            break
-    if font_large is None:
-        font_large = ImageFont.load_default()
-        font_small = ImageFont.load_default()
-
-    # Center main text
-    bbox = draw.textbbox((0, 0), text, font=font_large)
-    tw, th = bbox[2] - bbox[0], bbox[3] - bbox[1]
-    x = (width - tw) // 2
-    y = (height - th) // 2 - 15
-    draw.text((x, y), text, fill=text_color, font=font_large)
-
-    # Sub text below
-    if sub_text:
-        bbox2 = draw.textbbox((0, 0), sub_text, font=font_small)
-        tw2 = bbox2[2] - bbox2[0]
-        x2 = (width - tw2) // 2
-        draw.text((x2, y + th + 15), sub_text, fill=text_color, font=font_small)
-
-    # Convert to RGB565
-    pixel_data = []
-    for py in range(height):
-        for px in range(width):
-            r, g, b = img.getpixel((px, py))
-            rgb565 = ((r & 0xF8) << 8) | ((g & 0xFC) << 3) | (b >> 3)
-            pixel_data.extend([(rgb565 >> 8) & 0xFF, rgb565 & 0xFF])
-    return pixel_data
-
-
-# ---------------------------------------------------------------------------
 # Main class
 # ---------------------------------------------------------------------------
 
 class MurmurRecorder:
     def __init__(self, card_index=None):
-        self.board = WhisPlayBoard()
-        self.board.set_backlight(60)
-
-        self.card_index = card_index or self._find_wm8960_card()
+        self.card_index = card_index if card_index is not None else 1
         self._record_proc = None
         self._rec_file = None
         self._rec_start_time = None
@@ -128,67 +89,58 @@ class MurmurRecorder:
         self._led_thread = None
         self._led_running = False
 
-        # Pre-generate LCD screens
-        w, h = self.board.LCD_WIDTH, self.board.LCD_HEIGHT
-        self._screen_idle = make_screen(
-            "Murmur", "Press to record",
-            bg_color=(0, 0, 40), text_color=(100, 180, 255), width=w, height=h)
-        self._screen_recording = make_screen(
-            "Recording...", "Press to stop",
-            bg_color=(60, 0, 0), text_color=(255, 80, 80), width=w, height=h)
-        self._screen_saving = make_screen(
-            "Saving...", "",
-            bg_color=(40, 30, 0), text_color=(255, 200, 50), width=w, height=h)
-        self._screen_saved = make_screen(
-            "Saved!", "",
-            bg_color=(0, 40, 0), text_color=(80, 255, 80), width=w, height=h)
-        self._screen_error = make_screen(
-            "Error", "See logs",
-            bg_color=(60, 0, 0), text_color=(255, 80, 80), width=w, height=h)
-        self._screen_too_short = make_screen(
-            "Too short", "Try again",
-            bg_color=(40, 30, 0), text_color=(255, 200, 50), width=w, height=h)
-
-        # Register button callback — press to toggle recording
-        self.board.on_button_press(self._on_button_press)
-
-        # Configure ALSA mixer
-        self._setup_mixer()
-
-    def _find_wm8960_card(self):
-        """Find WM8960 sound card number from /proc/asound/cards."""
-        try:
-            with open("/proc/asound/cards") as f:
-                for line in f:
-                    if "wm8960" in line.lower():
-                        return int(line.strip().split()[0])
-        except Exception:
-            pass
-        return 1  # Default
-
-    def _setup_mixer(self):
-        """Configure WM8960 mixer for recording + speaker playback."""
-        card = str(self.card_index)
-        cmds = [
-            # Output routing (for beep playback)
-            ["amixer", "-c", card, "sset", "Left Output Mixer PCM", "on"],
-            ["amixer", "-c", card, "sset", "Right Output Mixer PCM", "on"],
-            ["amixer", "-c", card, "sset", "Speaker", "121"],
-            ["amixer", "-c", card, "sset", "Playback", "230"],
-            # Recording input
-            ["amixer", "-c", card, "sset", "Left Input Mixer Boost", "on"],
-            ["amixer", "-c", card, "sset", "Right Input Mixer Boost", "on"],
-            ["amixer", "-c", card, "sset", "Capture", "45"],
-            ["amixer", "-c", card, "sset", "ADC PCM", "195"],
-            # Microphone gain
-            ["amixer", "-c", card, "sset", "Left Input Boost Mixer LINPUT1", "2"],
-            ["amixer", "-c", card, "sset", "Right Input Boost Mixer RINPUT1", "2"],
-        ]
-        for cmd in cmds:
+        # Setup GPIO button
+        self._button = None
+        if GPIOButton is not None:
             try:
-                subprocess.run(cmd, capture_output=True, timeout=5)
+                self._button = GPIOButton(BUTTON_GPIO, pull_up=True, bounce_time=0.3)
+                self._button.when_pressed = self._on_button_press
+            except Exception as e:
+                print(f"[recorder] WARNING: GPIO button init failed: {e}")
+
+        # Setup GPIO LED (optional — may not be wired yet)
+        self._led = None
+        if GPIOLED is not None:
+            try:
+                self._led = GPIOLED(LED_GPIO)
+            except Exception as e:
+                print(f"[recorder] NOTE: GPIO LED init failed (not wired?): {e}")
+
+    # ==================== LED helpers ====================
+
+    def _led_on(self):
+        if self._led:
+            try:
+                self._led.on()
             except Exception:
                 pass
+
+    def _led_off(self):
+        if self._led:
+            try:
+                self._led.off()
+            except Exception:
+                pass
+
+    def _start_led_blink(self, on_time=0.3, off_time=0.3):
+        self._stop_led_blink()
+        self._led_running = True
+        self._led_thread = threading.Thread(
+            target=self._led_blink_loop, args=(on_time, off_time), daemon=True)
+        self._led_thread.start()
+
+    def _led_blink_loop(self, on_time, off_time):
+        while self._led_running:
+            self._led_on()
+            time.sleep(on_time)
+            self._led_off()
+            time.sleep(off_time)
+
+    def _stop_led_blink(self):
+        self._led_running = False
+        if self._led_thread and self._led_thread.is_alive():
+            self._led_thread.join(timeout=1)
+        self._led_thread = None
 
     # ==================== Button ====================
 
@@ -206,14 +158,14 @@ class MurmurRecorder:
         self.state = State.RECORDING
         print("[recorder] recording...")
 
-        self._show_screen(self._screen_recording)
-        self._start_led_blink(255, 0, 0)
+        self._stop_led_blink()
+        self._led_on()
 
-        # Start arecord in background thread
+        # Start arecord in background
         self._rec_file = os.path.join(tempfile.gettempdir(), f"murmur_{int(time.time())}.wav")
         self._rec_start_time = time.time()
 
-        hw_device = f"hw:{self.card_index},0"
+        hw_device = f"plughw:{self.card_index},0"
         try:
             self._record_proc = subprocess.Popen(
                 ["arecord", "-D", hw_device, "-f", FORMAT, "-r", str(SAMPLE_RATE),
@@ -224,7 +176,7 @@ class MurmurRecorder:
         except Exception as e:
             print(f"[recorder] ERROR starting arecord: {e}")
             self.state = State.IDLE
-            self._show_error()
+            self._led_off()
             return
 
     def _stop_recording(self):
@@ -260,18 +212,21 @@ class MurmurRecorder:
     # ==================== Upload ====================
 
     def _filter_audio(self, filepath):
-        """Apply noise reduction and notch filters to remove battery static noise."""
+        """Normalize audio: convert to 16kHz mono 16-bit, apply gain boost."""
         filtered = filepath + ".filtered.wav"
         noise_prof = os.path.join(os.path.dirname(os.path.abspath(__file__)), "noise.prof")
         try:
-            cmd = ["sox", filepath, filtered, "rate", "16000", "channels", "1"]
+            cmd = [
+                "sox", filepath, filtered,
+                "rate", "16000",
+                "channels", "1",
+                "gain", str(GAIN_DB),
+            ]
             if os.path.exists(noise_prof):
                 cmd += ["noisered", noise_prof, "0.05"]
-            cmd += ["bandreject", "550", "20q", "bandreject", "450", "20q",
-                     "bandreject", "750", "20q", "bandreject", "7000", "50q"]
             subprocess.run(cmd, check=True, capture_output=True, timeout=60)
             os.replace(filtered, filepath)
-            print("[recorder] audio filtered (noisered + notch, 16kHz mono)")
+            print(f"[recorder] audio filtered (gain +{GAIN_DB}dB, 16kHz mono)")
         except Exception as e:
             print(f"[recorder] audio filter failed, using original: {e}")
             if os.path.exists(filtered):
@@ -279,31 +234,26 @@ class MurmurRecorder:
 
     def _upload_and_idle(self, filepath, duration):
         """Upload the recording then return to idle state."""
+        # Show uploading state
+        self._stop_led_blink()
+        self._start_led_blink(0.15, 0.15)  # fast blink while uploading
+
         # Discard very short recordings
         if duration < 0.5:
             print("[recorder] too short, discarding")
-            self._stop_led_blink()
-            self._show_screen(self._screen_too_short)
-            self.board.set_rgb(255, 200, 0)
-            time.sleep(2)
             self._cleanup_file(filepath)
             self._go_idle()
             return
 
-        # Filter audio to remove high-pitched battery static
+        # Filter/boost audio
         self._filter_audio(filepath)
-
-        # Show saving state
-        self._stop_led_blink()
-        self._show_screen(self._screen_saving)
-        self.board.set_rgb(255, 200, 0)
 
         try:
             with open(filepath, "rb") as f:
                 resp = requests.post(
                     f"{API_URL}/api/entries",
                     files={"audio": ("recording.wav", f, "audio/wav")},
-                    data={"source": "whisplay", "duration": str(duration)},
+                    data={"source": "recorder", "duration": str(duration)},
                     timeout=30,
                 )
             resp.raise_for_status()
@@ -312,41 +262,19 @@ class MurmurRecorder:
             entry_id = entry.get("id", "?")
             print(f"[recorder] uploaded entry #{entry_id}")
 
-            self._show_screen(self._screen_saved)
-            self.board.set_rgb(0, 255, 0)
-            self._play_beep()
-            time.sleep(2)
-
         except requests.ConnectionError:
             print("[recorder] ERROR: cannot connect to API")
-            self._show_error("API not running")
 
         except requests.HTTPError as e:
             print(f"[recorder] ERROR: HTTP {e.response.status_code}")
-            self._show_error(f"HTTP {e.response.status_code}")
 
         except Exception as e:
             print(f"[recorder] ERROR: {e}")
-            self._show_error()
 
         finally:
             self._cleanup_file(filepath)
 
         self._go_idle()
-
-    def _show_error(self, detail=None):
-        """Show error screen for 3 seconds."""
-        if detail:
-            w, h = self.board.LCD_WIDTH, self.board.LCD_HEIGHT
-            screen = make_screen("Error", detail,
-                                 bg_color=(60, 0, 0), text_color=(255, 80, 80),
-                                 width=w, height=h)
-            self._show_screen(screen)
-        else:
-            self._show_screen(self._screen_error)
-        self._stop_led_blink()
-        self.board.set_rgb(255, 0, 0)
-        time.sleep(3)
 
     def _cleanup_file(self, filepath):
         try:
@@ -361,93 +289,28 @@ class MurmurRecorder:
         with self._lock:
             self.state = State.IDLE
         self._stop_led_blink()
-        self.board.set_rgb(0, 0, 0)
-        self._show_screen(self._screen_idle)
-        self._start_led_breath(0, 0, 255)
-
-    # ==================== Beep ====================
-
-    def _play_beep(self):
-        """Play a short confirmation beep through the WM8960 speaker."""
-        try:
-            hw_device = f"hw:{self.card_index},0"
-            subprocess.run(
-                ["play", "-n", "synth", "0.15", "sine", "880", "vol", "0.3"],
-                capture_output=True, timeout=3,
-            )
-        except (FileNotFoundError, subprocess.TimeoutExpired):
-            pass
-
-    # ==================== LED effects ====================
-
-    def _start_led_blink(self, r, g, b):
-        self._stop_led_blink()
-        self._led_running = True
-        self._led_thread = threading.Thread(
-            target=self._led_blink_loop, args=(r, g, b), daemon=True)
-        self._led_thread.start()
-
-    def _led_blink_loop(self, r, g, b):
-        while self._led_running:
-            self.board.set_rgb(r, g, b)
-            time.sleep(0.4)
-            self.board.set_rgb(0, 0, 0)
-            time.sleep(0.4)
-
-    def _start_led_breath(self, r, g, b):
-        self._stop_led_blink()
-        self._led_running = True
-        self._led_thread = threading.Thread(
-            target=self._led_breath_loop, args=(r, g, b), daemon=True)
-        self._led_thread.start()
-
-    def _led_breath_loop(self, r, g, b):
-        while self._led_running:
-            for i in range(0, 101, 5):
-                if not self._led_running:
-                    return
-                f = i / 100.0
-                self.board.set_rgb(int(r * f), int(g * f), int(b * f))
-                time.sleep(0.03)
-            for i in range(100, -1, -5):
-                if not self._led_running:
-                    return
-                f = i / 100.0
-                self.board.set_rgb(int(r * f), int(g * f), int(b * f))
-                time.sleep(0.03)
-
-    def _stop_led_blink(self):
-        self._led_running = False
-        if self._led_thread and self._led_thread.is_alive():
-            self._led_thread.join(timeout=1)
-        self._led_thread = None
-
-    # ==================== LCD ====================
-
-    def _show_screen(self, pixel_data):
-        try:
-            self.board.draw_image(0, 0, self.board.LCD_WIDTH,
-                                  self.board.LCD_HEIGHT, pixel_data)
-        except Exception as e:
-            print(f"[recorder] LCD error: {e}")
+        self._led_off()
 
     # ==================== Run ====================
 
     def run(self):
         print("=" * 50)
-        print("  Murmur WhisPlay Recorder")
+        print("  Murmur Recorder (INMP441 I2S)")
         print("=" * 50)
-        print(f"  Sound card: {self.card_index}")
-        print(f"  API: {API_URL}")
-        print(f"  Max recording: {MAX_RECORD_SEC}s")
+        print(f"  Sound card: plughw:{self.card_index},0")
+        print(f"  Format:     {FORMAT} {SAMPLE_RATE}Hz mono")
+        print(f"  Gain:       +{GAIN_DB}dB")
+        print(f"  Button:     GPIO{BUTTON_GPIO}")
+        print(f"  LED:        GPIO{LED_GPIO}" + (" (not wired)" if not self._led else ""))
+        print(f"  API:        {API_URL}")
+        print(f"  Max rec:    {MAX_RECORD_SEC}s")
         print()
         print("  Press button → record")
         print("  Press again  → stop & upload")
         print("  Ctrl+C       → exit")
         print("=" * 50)
 
-        self._show_screen(self._screen_idle)
-        self._start_led_breath(0, 0, 255)
+        self._led_off()
 
         try:
             while True:
@@ -462,9 +325,7 @@ class MurmurRecorder:
                     self._record_proc.wait(timeout=2)
                 except Exception:
                     self._record_proc.kill()
-            self.board.set_rgb(0, 0, 0)
-            self.board.set_backlight(0)
-            self.board.cleanup()
+            self._led_off()
 
 
 # ---------------------------------------------------------------------------
@@ -472,10 +333,15 @@ class MurmurRecorder:
 # ---------------------------------------------------------------------------
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Murmur WhisPlay Recorder")
+    parser = argparse.ArgumentParser(description="Murmur INMP441 Recorder")
     parser.add_argument("--card", type=int, default=None,
-                        help="WM8960 sound card number (default: auto-detect)")
+                        help="ALSA sound card number (default: 1)")
+    parser.add_argument("--gain", type=int, default=None,
+                        help=f"Software gain in dB (default: {GAIN_DB})")
     args = parser.parse_args()
+
+    if args.gain is not None:
+        GAIN_DB = args.gain
 
     recorder = MurmurRecorder(card_index=args.card)
     recorder.run()

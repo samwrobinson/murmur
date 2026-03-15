@@ -90,11 +90,12 @@ def init_db():
 
 def create_entry(audio_filename=None, duration_seconds=None, notes=None, source="voice"):
     conn = get_db()
+    now = datetime.now().strftime("%Y-%m-%d %H:%M:%S")
     cursor = conn.execute(
-        """INSERT INTO entries (audio_filename, duration_seconds, notes, source,
-           transcription_status)
-           VALUES (?, ?, ?, ?, ?)""",
-        (audio_filename, duration_seconds, notes, source,
+        """INSERT INTO entries (created_at, updated_at, audio_filename, duration_seconds,
+           notes, source, transcription_status)
+           VALUES (?, ?, ?, ?, ?, ?, ?)""",
+        (now, now, audio_filename, duration_seconds, notes, source,
          "pending" if audio_filename else "none")
     )
     entry_id = cursor.lastrowid
@@ -165,7 +166,8 @@ def update_entry(entry_id, notes=None, transcription=None, transcription_status=
         fields.append("transcription_status = ?")
         values.append(transcription_status)
     if fields:
-        fields.append("updated_at = CURRENT_TIMESTAMP")
+        fields.append("updated_at = ?")
+        values.append(datetime.now().strftime("%Y-%m-%d %H:%M:%S"))
         values.append(entry_id)
         conn.execute(f"UPDATE entries SET {', '.join(fields)} WHERE id = ?", values)
         conn.commit()

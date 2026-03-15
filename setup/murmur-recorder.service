@@ -1,5 +1,5 @@
 [Unit]
-Description=Murmur WhisPlay HAT Recorder
+Description=Murmur INMP441 I2S Recorder
 After=murmur-api.service
 
 [Service]

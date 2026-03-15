@@ -24,7 +24,7 @@ echo "[1/7] Installing system packages..."
 apt-get update -y
 apt-get install -y \
     python3 python3-flask python3-flask-cors python3-requests \
-    python3-pil \
+    python3-gpiozero python3-lgpio \
     nginx samba avahi-daemon \
     alsa-utils \
     sox
@@ -32,10 +32,9 @@ apt-get install -y \
 echo ""
 echo "[2/7] Skipping local whisper — cloud transcription is used"
 
-# NOTE: WhisPlay HAT driver must be installed separately AFTER setup:
-#   git clone --depth 1 https://github.com/PiSugar/Whisplay.git ~/Whisplay
-#   cd ~/Whisplay/Driver && sudo bash install_wm8960_drive.sh
-#   sudo reboot
+# NOTE: INMP441 I2S mic uses the googlevoicehat-soundcard overlay in config.txt
+# No additional driver install needed — just ensure dtoverlay=googlevoicehat-soundcard
+# is in /boot/firmware/config.txt (or /boot/config.txt)
 
 # --- 2b. NetworkManager + WiFi permissions ---
 echo ""
@@ -119,8 +118,8 @@ systemctl daemon-reload
 systemctl enable murmur-api murmur-sync murmur-recorder murmur-hotspot
 systemctl start murmur-api
 systemctl start murmur-sync
-# Recorder starts but may show errors until reboot loads WM8960 overlay
-systemctl start murmur-recorder || echo "  Note: recorder may need reboot for audio HAT"
+# Recorder uses INMP441 I2S mic via googlevoicehat-soundcard overlay
+systemctl start murmur-recorder || echo "  Note: recorder may need reboot for I2S overlay"
 
 # --- 7. Verify ---
 echo ""
