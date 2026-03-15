@@ -41,10 +41,13 @@ import requests
 
 try:
     from gpiozero import Button as GPIOButton, LED as GPIOLED
+    from gpiozero.pins.rpigpio import RPiGPIOFactory
+    _pin_factory = RPiGPIOFactory()
 except ImportError:
     print("[recorder] WARNING: gpiozero not available — button/LED disabled")
     GPIOButton = None
     GPIOLED = None
+    _pin_factory = None
 
 # ---------------------------------------------------------------------------
 # Configuration
@@ -59,8 +62,8 @@ MAX_RECORD_SEC = 300  # 5 minute max
 BUTTON_GPIO = 5       # GPIO5 (Pin 29)
 LED_GPIO = 13         # GPIO13 (Pin 33)
 
-# Software gain boost (dB) applied via sox to compensate for quiet INMP441
-GAIN_DB = 20
+# Software gain boost (dB) — set to 0 for no boost, increase if too quiet
+GAIN_DB = 0
 
 
 # ---------------------------------------------------------------------------
@@ -93,7 +96,7 @@ class MurmurRecorder:
         self._button = None
         if GPIOButton is not None:
             try:
-                self._button = GPIOButton(BUTTON_GPIO, pull_up=True, bounce_time=0.3)
+                self._button = GPIOButton(BUTTON_GPIO, pull_up=True, bounce_time=0.3, pin_factory=_pin_factory)
                 self._button.when_pressed = self._on_button_press
             except Exception as e:
                 print(f"[recorder] WARNING: GPIO button init failed: {e}")
@@ -102,7 +105,7 @@ class MurmurRecorder:
         self._led = None
         if GPIOLED is not None:
             try:
-                self._led = GPIOLED(LED_GPIO)
+                self._led = GPIOLED(LED_GPIO, pin_factory=_pin_factory)
             except Exception as e:
                 print(f"[recorder] NOTE: GPIO LED init failed (not wired?): {e}")
 
@@ -212,23 +215,18 @@ class MurmurRecorder:
     # ==================== Upload ====================
 
     def _filter_audio(self, filepath):
-        """Normalize audio: convert to 16kHz mono 16-bit, apply gain boost."""
+        """Convert to 16kHz mono 16-bit WAV for Whisper, with optional gain."""
         filtered = filepath + ".filtered.wav"
-        noise_prof = os.path.join(os.path.dirname(os.path.abspath(__file__)), "noise.prof")
         try:
-            cmd = [
-                "sox", filepath, filtered,
-                "rate", "16000",
-                "channels", "1",
-                "gain", str(GAIN_DB),
-            ]
-            if os.path.exists(noise_prof):
-                cmd += ["noisered", noise_prof, "0.05"]
+            cmd = ["sox", filepath, filtered, "rate", "16000", "channels", "1"]
+            if GAIN_DB:
+                cmd += ["gain", str(GAIN_DB)]
             subprocess.run(cmd, check=True, capture_output=True, timeout=60)
             os.replace(filtered, filepath)
-            print(f"[recorder] audio filtered (gain +{GAIN_DB}dB, 16kHz mono)")
+            gain_str = f", gain +{GAIN_DB}dB" if GAIN_DB else ""
+            print(f"[recorder] audio converted (16kHz mono{gain_str})")
         except Exception as e:
-            print(f"[recorder] audio filter failed, using original: {e}")
+            print(f"[recorder] audio convert failed, using original: {e}")
             if os.path.exists(filtered):
                 os.remove(filtered)
 
